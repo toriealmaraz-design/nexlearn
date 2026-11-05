@@ -13,6 +13,11 @@ async function LessonDetailContent({
 }) {
   await connection();
   const { trackId, lessonId } = await params;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!uuidPattern.test(trackId) || !uuidPattern.test(lessonId)) {
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-[#6b7796]">Lesson not found.</div>;
+  }
 
   const [lesson] = await db.select().from(lessonsTable).where(eq(lessonsTable.id, lessonId)).limit(1);
 

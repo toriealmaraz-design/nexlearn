@@ -9,6 +9,11 @@ import type { Track, Lesson } from "@/lib/types";
 async function TrackDetailContent({ params }: { params: Promise<{ trackId: string }> }) {
   await connection();
   const { trackId } = await params;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!uuidPattern.test(trackId)) {
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-[#6b7796]">Track not found.</div>;
+  }
 
   const [track] = await db.select().from(tracksTable).where(eq(tracksTable.id, trackId)).limit(1);
   if (!track) {
