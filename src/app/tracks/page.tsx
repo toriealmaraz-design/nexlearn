@@ -8,7 +8,12 @@ import type { Track } from "@/lib/types";
 
 async function TracksContent() {
   await connection();
-  const tracks: Track[] = await db.select().from(tracksTable).orderBy(asc(tracksTable.orderIndex));
+  let tracks: Track[] = [];
+  try {
+    tracks = await db.select().from(tracksTable).orderBy(asc(tracksTable.orderIndex));
+  } catch (error) {
+    console.error("[tracks] Unable to load tracks", error);
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-16">
