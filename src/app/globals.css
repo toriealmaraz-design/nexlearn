@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --background: #04060f;
+  --foreground: #f3f6ff;
+  --muted: #9aa6c4;
+  --muted-2: #6b7796;
+  --accent: #5df0a8;
+  --accent-2: #2fd38a;
+  --accent-ink: #032018;
+  --glass: rgba(12,18,38,.55);
+  --glass-2: rgba(16,24,48,.65);
+  --line: rgba(150,175,230,.12);
+  --line-strong: rgba(150,175,230,.22);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: #5df0a8;
+  --color-accent-dark: #2fd38a;
+  --color-nex-bg: #04060f;
+  --color-nex-bg2: #060a18;
+  --color-nex-ink: #f3f6ff;
+  --color-nex-muted: #9aa6c4;
+  --color-nex-muted2: #6b7796;
+  --color-nex-glass: rgba(12,18,38,.55);
+  --color-nex-glass2: rgba(16,24,48,.65);
+  --color-nex-line: rgba(150,175,230,.12);
+  --color-nex-line-strong: rgba(150,175,230,.22);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
