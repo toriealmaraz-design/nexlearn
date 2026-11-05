@@ -5,6 +5,8 @@ import { tracks as tracksTable } from "@/lib/schema";
 import { asc } from "drizzle-orm";
 import type { Track } from "@/lib/types";
 
+export const instant = false;
+
 export default async function TracksPage() {
   await connection();
   const tracks: Track[] = await db.select().from(tracksTable).orderBy(asc(tracksTable.orderIndex));

@@ -5,6 +5,8 @@ import { tracks as tracksTable, lessons as lessonsTable } from "@/lib/schema";
 import { eq, and, asc } from "drizzle-orm";
 import type { Track, Lesson } from "@/lib/types";
 
+export const instant = false;
+
 export default async function TrackDetailPage({ params }: { params: Promise<{ trackId: string }> }) {
   await connection();
   const { trackId } = await params;

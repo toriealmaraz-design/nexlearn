@@ -5,6 +5,8 @@ import { lessons as lessonsTable } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import type { Lesson } from "@/lib/types";
 
+export const instant = false;
+
 export default async function LessonDetailPage({
   params,
 }: {
