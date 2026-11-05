@@ -1,12 +1,12 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { tracks as tracksTable, lessons as lessonsTable } from "@/lib/schema";
 import { eq, and, asc } from "drizzle-orm";
 import type { Track, Lesson } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function TrackDetailPage({ params }: { params: Promise<{ trackId: string }> }) {
+  await connection();
   const { trackId } = await params;
 
   const [track] = await db.select().from(tracksTable).where(eq(tracksTable.id, trackId)).limit(1);

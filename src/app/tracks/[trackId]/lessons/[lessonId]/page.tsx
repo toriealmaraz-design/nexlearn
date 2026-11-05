@@ -1,16 +1,16 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { lessons as lessonsTable } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import type { Lesson } from "@/lib/types";
-
-export const dynamic = "force-dynamic";
 
 export default async function LessonDetailPage({
   params,
 }: {
   params: Promise<{ trackId: string; lessonId: string }>;
 }) {
+  await connection();
   const { trackId, lessonId } = await params;
 
   const [lesson] = await db.select().from(lessonsTable).where(eq(lessonsTable.id, lessonId)).limit(1);
