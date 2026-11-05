@@ -34,7 +34,15 @@ html.lenis,html.lenis body{height:auto}
 [data-reveal]{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.22,.7,.2,1),transform .7s cubic-bezier(.22,.7,.2,1);transition-delay:var(--rd,0ms);will-change:opacity,transform}
 [data-reveal].in{opacity:1;transform:none}
 .planet-canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;z-index:0;pointer-events:none}
-.page{position:relative;z-index:1}
+  .planet-fallback{position:fixed;z-index:1;pointer-events:none;width:min(38vw,390px);aspect-ratio:1;border-radius:50%;right:clamp(-120px,4vw,72px);top:clamp(120px,23vh,230px);opacity:.92;background:
+    radial-gradient(circle at 34% 28%,rgba(184,255,255,.95) 0 2%,transparent 3%),
+    radial-gradient(ellipse at 62% 34%,rgba(91,193,255,.76) 0 10%,transparent 11%),
+    radial-gradient(ellipse at 38% 57%,rgba(54,130,219,.9) 0 15%,transparent 16%),
+    radial-gradient(ellipse at 70% 70%,rgba(82,177,240,.8) 0 12%,transparent 13%),
+    radial-gradient(circle at 35% 30%,#58d8ff 0,#1669d8 38%,#071d72 72%,#02061d 100%);
+    box-shadow:-20px 18px 70px rgba(30,110,255,.48),inset -34px -20px 62px rgba(0,0,30,.82),inset 20px 12px 28px rgba(185,249,255,.42);filter:saturate(1.15)}
+  .planet-fallback::after{content:'';position:absolute;inset:3%;border-radius:50%;background:linear-gradient(125deg,transparent 35%,rgba(172,246,255,.18) 48%,transparent 62%);mix-blend-mode:screen}
+  .page{position:relative;z-index:2}
 .section{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:clamp(80px,12vw,160px) 24px}
 .eyebrow{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}
 .section-head{max-width:680px;margin:0 auto clamp(48px,6vw,80px);text-align:center}
@@ -154,7 +162,8 @@ html.lenis,html.lenis body{height:auto}
 </head>
 <body>
 <canvas class="planet-canvas"></canvas>
-<div class="page" id="top">
+  <div class="planet-fallback" aria-hidden="true"></div>
+  <div class="page" id="top">
 
 <!-- HERO -->
 <header class="hero">
@@ -351,9 +360,9 @@ function sample(stops,p){
   return stops[stops.length-1].v;
 }
 
-const STOPS_X=[{p:0,v:0},{p:0.32,v:-3.1},{p:0.64,v:3.2},{p:1,v:0}];
-const STOPS_Y=[{p:0,v:-4.5},{p:0.32,v:0.55},{p:0.64,v:0.45},{p:1,v:0.15}];
-const STOPS_S=[{p:0,v:2.15},{p:0.32,v:1.0},{p:0.64,v:0.92},{p:1,v:1.12}];
+const STOPS_X=[{p:0,v:2.1},{p:0.32,v:-3.1},{p:0.64,v:3.2},{p:1,v:0}];
+  const STOPS_Y=[{p:0,v:-0.35},{p:0.32,v:0.55},{p:0.64,v:0.45},{p:1,v:0.15}];
+  const STOPS_S=[{p:0,v:1.15},{p:0.32,v:1.0},{p:0.64,v:0.92},{p:1,v:1.12}];
 
 const SNOISE = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
