@@ -4,6 +4,8 @@ import { lessons as lessonsTable } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import type { Lesson } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function LessonDetailPage({
   params,
 }: {

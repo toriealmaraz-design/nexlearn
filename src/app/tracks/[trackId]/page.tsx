@@ -4,6 +4,8 @@ import { tracks as tracksTable, lessons as lessonsTable } from "@/lib/schema";
 import { eq, and, asc } from "drizzle-orm";
 import type { Track, Lesson } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function TrackDetailPage({ params }: { params: Promise<{ trackId: string }> }) {
   const { trackId } = await params;
 

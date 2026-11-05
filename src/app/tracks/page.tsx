@@ -4,6 +4,8 @@ import { tracks as tracksTable } from "@/lib/schema";
 import { asc } from "drizzle-orm";
 import type { Track } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function TracksPage() {
   const tracks: Track[] = await db.select().from(tracksTable).orderBy(asc(tracksTable.orderIndex));
 
