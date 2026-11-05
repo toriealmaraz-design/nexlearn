@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { db } from "@/lib/db";
@@ -5,9 +6,7 @@ import { tracks as tracksTable } from "@/lib/schema";
 import { asc } from "drizzle-orm";
 import type { Track } from "@/lib/types";
 
-export const instant = false;
-
-export default async function TracksPage() {
+async function TracksContent() {
   await connection();
   const tracks: Track[] = await db.select().from(tracksTable).orderBy(asc(tracksTable.orderIndex));
 
@@ -50,5 +49,13 @@ export default async function TracksPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TracksPage() {
+  return (
+    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-16 text-[#6b7796]">Loading tracks...</div>}>
+      <TracksContent />
+    </Suspense>
   );
 }

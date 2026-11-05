@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { db } from "@/lib/db";
@@ -5,9 +6,7 @@ import { tracks as tracksTable, lessons as lessonsTable } from "@/lib/schema";
 import { eq, and, asc } from "drizzle-orm";
 import type { Track, Lesson } from "@/lib/types";
 
-export const instant = false;
-
-export default async function TrackDetailPage({ params }: { params: Promise<{ trackId: string }> }) {
+async function TrackDetailContent({ params }: { params: Promise<{ trackId: string }> }) {
   await connection();
   const { trackId } = await params;
 
@@ -65,5 +64,13 @@ export default async function TrackDetailPage({ params }: { params: Promise<{ tr
         </div>
       )}
     </div>
+  );
+}
+
+export default function TrackDetailPage({ params }: { params: Promise<{ trackId: string }> }) {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-16 text-[#6b7796]">Loading track...</div>}>
+      <TrackDetailContent params={params} />
+    </Suspense>
   );
 }

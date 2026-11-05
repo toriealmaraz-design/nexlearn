@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { db } from "@/lib/db";
@@ -5,9 +6,7 @@ import { lessons as lessonsTable } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import type { Lesson } from "@/lib/types";
 
-export const instant = false;
-
-export default async function LessonDetailPage({
+async function LessonDetailContent({
   params,
 }: {
   params: Promise<{ trackId: string; lessonId: string }>;
@@ -101,5 +100,17 @@ export default async function LessonDetailPage({
         <p className="text-[#6b7796] text-sm">Sign in to join the conversation and ask questions.</p>
       </div>
     </div>
+  );
+}
+
+export default function LessonDetailPage({
+  params,
+}: {
+  params: Promise<{ trackId: string; lessonId: string }>;
+}) {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-16 text-[#6b7796]">Loading lesson...</div>}>
+      <LessonDetailContent params={params} />
+    </Suspense>
   );
 }
