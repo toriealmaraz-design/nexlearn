@@ -153,7 +153,9 @@ html.lenis,html.lenis body{height:auto}
 </style>
 </head>
 <body>
-<canvas class="planet-canvas"></canvas>
+<canvas class="planet-canvas" id="planetCanvas"></canvas>
+<!-- Static fallback gradient when WebGL unavailable or loading -->
+<div class="planet-fallback" id="planetFallback" style="position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 80% 60% at 50% 65%,rgba(58,108,255,.15),transparent 70%),radial-gradient(ellipse 50% 40% at 30% 50%,rgba(93,240,168,.06),transparent 50%),#04060f;"></div>
 <div class="page" id="top">
 
 <!-- HERO -->
@@ -381,10 +383,42 @@ float snoise(vec3 v){
 }`;
 
 const canvas = document.querySelector('.planet-canvas');
-const renderer = new THREE.WebGL1Renderer({ canvas, antialias:true });
-renderer.setPixelRatio(devicePixelRatio);
+
+/* ── Device capability check ── */
+const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const MEM = navigator.deviceMemory || 4; // GB, defaults to 4 if unknown
+const CORES = navigator.hardwareConcurrency || 4;
+const LOW_END = IS_MOBILE && (MEM <= 3 || CORES <= 4);
+let WEBGL_OK = false;
+try {
+  const testCtx = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (testCtx) {
+    const dbg = testCtx.getExtension('WEBGL_debug_renderer_info');
+    const gpu = dbg ? testCtx.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '';
+    // Block known crash-prone GPUs (old Mali, Adreno 3xx/4xx, SwiftShader)
+    const BAD_GPU = /Mali-[T4]|Adreno.[34]\d\d|SwiftShader|llvmpipe/i.test(gpu);
+    WEBGL_OK = !BAD_GPU;
+    testCtx.getExtension('WEBGL_lose_context')?.loseContext();
+  }
+} catch(e) {}
+
+if (!WEBGL_OK) {
+  // Hide canvas, show gradient fallback, skip entire scene
+  canvas.style.display = 'none';
+  console.log('WebGL skipped: device not capable');
+} else {
+  // Hide fallback, show canvas
+  document.getElementById('planetFallback').style.display = 'none';
+
+// Reduce particle counts on weaker devices
+CONFIG.atmoCount = LOW_END ? 80 : IS_MOBILE ? 160 : 320;
+CONFIG.starCount = LOW_END ? 400 : IS_MOBILE ? 700 : 1400;
+CONFIG.markerCount = LOW_END ? 15 : IS_MOBILE ? 30 : 60;
+
+const renderer = new THREE.WebGL1Renderer({ canvas, antialias: !IS_MOBILE, powerPreference: IS_MOBILE ? 'low-power' : 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE ? 1.5 : 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !LOW_END;
 renderer.shadowMap.type = THREE.VSMShadowMap;
 let w = innerWidth, h = innerHeight;
 renderer.setSize(w, h);
@@ -936,7 +970,7 @@ function animate(now) {
   camera.layers.set(LAYERS.ENTIRE_SCENE);
   finalComposer.render();
 }
-requestAnimationFrame(animate);
+// animate loop started by FPS monitor below
 
 /* ── Resize ── */
 window.addEventListener('resize', () => {
@@ -950,6 +984,43 @@ window.addEventListener('resize', () => {
   if(window._markerUniforms) window._markerUniforms.uRes.value.set(w,h);
   moteUniforms.uRes.value.set(w,h);
 });
+
+/* ── FPS monitor: bail out if consistently below 12fps ── */
+let _fpsFrames = 0, _fpsStart = performance.now(), _lowCount = 0;
+const _origAnimate = animate;
+function _monitoredAnimate(now) {
+  _fpsFrames++;
+  const elapsed = now - _fpsStart;
+  if (elapsed > 2000) {
+    const fps = _fpsFrames / (elapsed / 1000);
+    _fpsFrames = 0; _fpsStart = now;
+    if (fps < 12) _lowCount++;
+    else _lowCount = Math.max(0, _lowCount - 1);
+    if (_lowCount >= 3) {
+      // Kill WebGL, show fallback
+      console.warn('WebGL killed: sustained low FPS (' + Math.round(fps) + ')');
+      renderer.dispose(); renderer.forceContextLoss();
+      canvas.style.display = 'none';
+      document.getElementById('planetFallback').style.display = '';
+      return; // stop loop
+    }
+  }
+  _origAnimate(now);
+  requestAnimationFrame(_monitoredAnimate);
+}
+// Replace the plain rAF with the monitored one
+// (cancel the one already queued by swapping)
+requestAnimationFrame(_monitoredAnimate);
+
+} // end WEBGL_OK else block
+
+/* ── Handle GPU context loss gracefully ── */
+document.getElementById('planetCanvas').addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  console.warn('WebGL context lost — showing fallback');
+  document.getElementById('planetCanvas').style.display = 'none';
+  document.getElementById('planetFallback').style.display = '';
+}, false);
 
 </script>
 
