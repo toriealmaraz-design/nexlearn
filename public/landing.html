@@ -49,7 +49,7 @@ html.lenis,html.lenis body{height:auto}.lenis.lenis-smooth{scroll-behavior:auto 
 </head>
 <body>
 <canvas class="planet-canvas" id="planetCanvas"></canvas>
-<div class="planet-fallback" id="planetFallback"></div>
+<div class="planet-fallback" id="planetFallback"><canvas id="galaxyCanvas" style="width:100%;height:100%;display:block"></canvas></div>
 <div class="page" id="top">
 <header class="hero">
 <nav class="nav">
@@ -200,7 +200,98 @@ try {
   }
 } catch(e){}
 
-function showFallback(){ canvas.style.display='none'; fallbackEl.style.display=''; }
+function showFallback(){ canvas.style.display='none'; fallbackEl.style.display=''; initGalaxyFallback(); }
+
+/* ═══ Galaxy Fallback Scene (procedural, no assets) ═══ */
+let galaxyInited = false;
+function initGalaxyFallback(){
+  if(galaxyInited) return; galaxyInited=true;
+  const gc = document.getElementById('galaxyCanvas');
+  if(!gc) return;
+  let gr;
+  try { gr = new THREE.WebGL1Renderer({canvas:gc,antialias:false,powerPreference:'low-power'}); }
+  catch(e){ return; } // truly no WebGL — keep gradient
+  gr.setPixelRatio(Math.min(devicePixelRatio,1.5)); gr.setSize(innerWidth,innerHeight);
+  gr.shadowMap.enabled=false;
+  const gs = new THREE.Scene(); gs.background=new THREE.Color(0x000000); gs.fog=new THREE.Fog(0x000000,0,15);
+  const gcam = new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,80); gcam.position.set(0,0,14);
+  gcam.layers.enable(1);gcam.layers.enable(2);gcam.layers.enable(3); gs.add(gcam);
+
+  /* Galaxy FinalPass */
+  const gFP={uniforms:{iTime:{value:0},tDiffuse:{value:null},torusTexture:{value:null},bloomTexture:{value:null},haloTexture:{value:null},iCornerBlue:{value:hexToVec3('#ffcf2a')},iCornerOrange:{value:hexToVec3('#ff3b1f')}},
+    vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,1.0);}`,
+    fragmentShader:`uniform float iTime;uniform sampler2D tDiffuse;uniform sampler2D bloomTexture;uniform sampler2D torusTexture;uniform sampler2D haloTexture;uniform vec3 iCornerBlue;uniform vec3 iCornerOrange;varying vec2 vUv;
+    vec3 warp3d(vec3 pos,float t){float curv=.8,a=1.9,b=0.7;pos*=2.;pos.x+=curv*sin(t+a*pos.y)+t*b;pos.y+=curv*cos(t+a*pos.x);pos.y+=curv*sin(t+a*pos.z)+t*b;pos.z+=curv*cos(t+a*pos.y);pos.z+=curv*sin(t+a*pos.x)+t*b;pos.x+=curv*cos(t+a*pos.z);return 0.5+0.5*cos(pos.xyz+vec3(1,2,4));}
+    void main(){vec2 uv=2.*vUv-1.;vec3 w=pow(warp3d(vec3(uv.x,sin(uv.y),uv.y),iTime*1.5),vec3(1.5));vec3 col=1.5*iCornerBlue*w.x;col*=w.y;col+=iCornerOrange*w.z;col*=smoothstep(0.6,1.,abs(uv.y));col*=smoothstep(-.5,1.,-uv.y*uv.x);col*=smoothstep(-.5,1.,-uv.y*uv.x);vec3 halo=texture2D(haloTexture,vUv).xyz;vec3 atmoBg=vec3(0.02,0.03,0.10)*(1.0-0.4*length(uv));gl_FragColor=vec4(atmoBg+col*0.2+texture2D(bloomTexture,vUv).xyz+texture2D(torusTexture,vUv).xyz+texture2D(tDiffuse,vUv).xyz+halo,1.);}`
+  };
+
+  /* Composers */
+  const gRS=new RenderPass(gs,gcam);
+  const gTC=new EffectComposer(gr);gTC.renderToScreen=false;gTC.addPass(gRS);gTC.addPass(new ShaderPass(GammaCorrectionShader));gTC.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.22,0.2,0));gTC.addPass(new ShaderPass(CopyShader));
+  const gBC=new EffectComposer(gr);gBC.renderToScreen=false;gBC.addPass(new RenderPass(gs,gcam));gBC.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.35,0.5,0));gBC.addPass(new ShaderPass(GammaCorrectionShader));
+  const gFC=new EffectComposer(gr);gFC.addPass(new RenderPass(gs,gcam));
+  const gfp=new ShaderPass(gFP);gfp.uniforms.bloomTexture.value=gBC.renderTarget1.texture;gfp.uniforms.torusTexture.value=gTC.renderTarget1.texture;gFC.addPass(gfp);
+
+  /* Galaxy geometry */
+  const K=107, SP=12.5, R=1.7, N=200000;
+  const pos=new Float32Array(N*3),shells=new Float32Array(N),szs=new Float32Array(N),ids=new Float32Array(N);
+  const frames=[];
+  for(let k=0;k<K;k++) frames.push({m:new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI)),size:0.18+0.34*Math.random(),ecc:0.45+0.42*Math.random(),thick:0.06+0.05*Math.random(),ox:(Math.random()-.5)*2*SP,oy:(Math.random()-.5)*2*SP,oz:(Math.random()-.5)*2*SP*0.6});
+  const tmp=new THREE.Vector3();
+  for(let i=0;i<N;i++){const f=frames[i%K],th=Math.random()*2*Math.PI,rad=Math.pow(Math.random(),1.4),rx=f.size*R*rad,rz=f.size*R*f.ecc*rad,y=(Math.random()-.5)*2*f.thick*R*rad;tmp.set(rx*Math.cos(th),y,rz*Math.sin(th)).applyMatrix4(f.m);tmp.x+=f.ox;tmp.y+=f.oy;tmp.z+=f.oz;pos[i*3]=tmp.x;pos[i*3+1]=tmp.y;pos[i*3+2]=tmp.z;shells[i]=rad;szs[i]=6+9*Math.random();ids[i]=Math.random();}
+  const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.BufferAttribute(pos,3));gg.setAttribute('shell',new THREE.BufferAttribute(shells,1));gg.setAttribute('size',new THREE.BufferAttribute(szs,1));gg.setAttribute('id',new THREE.BufferAttribute(ids,1));
+
+  const gUniforms={iTime:{value:0},iAnimate:{value:0},uOpacity:{value:1},uExpand:{value:1},uWobbleAmount:{value:0.175},uWobbleSpeed:{value:0.35},uCore:{value:hexToVec3('#fff3b0')},uMid:{value:hexToVec3('#ffb52a')},uRim:{value:hexToVec3('#3a1402')},uTwinkle:{value:hexToVec3('#ff5e8a')},uGradientPow:{value:1.4},uTwinkleAmount:{value:0.87},uTwinkleSpeed:{value:4}};
+  const gMat=new THREE.ShaderMaterial({uniforms:gUniforms,blending:THREE.AdditiveBlending,depthTest:false,transparent:true,
+    vertexShader:`attribute float size;attribute float id;attribute float shell;uniform float iTime;uniform float iAnimate;uniform float uExpand;uniform float uWobbleAmount;uniform float uWobbleSpeed;varying float vShell;varying float vId;
+    void main(){vShell=shell;vId=id;float ph=id*6.2831853;vec3 wob=vec3(sin(iTime*uWobbleSpeed+ph),cos(iTime*uWobbleSpeed*1.3+ph),sin(iTime*uWobbleSpeed*0.7+ph))*uWobbleAmount;vec3 p=(position+wob)*uExpand;vec4 mv=modelViewMatrix*vec4(p,1.0);gl_PointSize=size/-mv.z*(0.5+0.5*iAnimate);vec4 res=projectionMatrix*mv;float a=pow(iAnimate,0.6);res.xy*=clamp(2.0*a+pow(id,0.7)-1.0,0.0,1.0);gl_Position=res;}`,
+    fragmentShader:`uniform float iTime;uniform float uOpacity;uniform vec3 uCore;uniform vec3 uMid;uniform vec3 uRim;uniform vec3 uTwinkle;uniform float uGradientPow;uniform float uTwinkleAmount;uniform float uTwinkleSpeed;varying float vShell;varying float vId;
+    vec3 grad3(vec3 a,vec3 b,vec3 c,float t){return t<0.5?mix(a,b,t*2.0):mix(b,c,clamp((t-0.5)*2.0,0.0,1.0));}
+    void main(){float t=pow(vShell,uGradientPow);vec3 col=grad3(uCore,uMid,uRim,t);float tw=0.5+0.5*sin(iTime*uTwinkleSpeed+vId*100.0);col=mix(col,uTwinkle,tw*uTwinkleAmount*(1.0-t));col*=(0.45+0.85*(1.0-t));float tex=1.0-smoothstep(0.5,1.0,length(2.0*gl_PointCoord-1.0));gl_FragColor=vec4(col*tex,tex*uOpacity);}`
+  });
+  const cloud=new THREE.Points(gg,gMat);cloud.position.set(0,0,-0.8);cloud.layers.set(3);
+  const grp=new THREE.Group();grp.add(cloud);grp.position.z=-20;gs.add(grp);
+
+  /* Motes */
+  const mN=350,mPos=new Float32Array(mN*3),mSz=new Float32Array(mN),mSd=new Float32Array(mN);
+  for(let i=0;i<mN;i++){mPos[i*3]=Math.random()*2-1;mPos[i*3+1]=Math.random()*2-1;mPos[i*3+2]=Math.random()*2-1;mSz[i]=14*(0.4+Math.random());mSd[i]=Math.random();}
+  const mg=new THREE.BufferGeometry();mg.setAttribute('position',new THREE.BufferAttribute(mPos,3));mg.setAttribute('size',new THREE.BufferAttribute(mSz,1));mg.setAttribute('seed',new THREE.BufferAttribute(mSd,1));
+  const mU={uTime:{value:0},uColor:{value:hexToVec3('#ffd9a0')},uRes:{value:new THREE.Vector2(innerWidth,innerHeight)}};
+  const motes=new THREE.Points(mg,new THREE.ShaderMaterial({uniforms:mU,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,
+    vertexShader:`attribute float size;attribute float seed;uniform float uTime;uniform vec2 uRes;varying float vA;
+    vec3 warp(vec3 p,float t){float c=0.9,a=1.9,b=0.02,s=0.05;p*=2.;p.x+=c*sin(s*t+a*p.y)+t*b;p.y+=c*cos(s*t+a*p.x);p.y+=c*sin(s*t+a*p.z)+t*b;p.z+=c*cos(s*t+a*p.y);p.z+=c*sin(s*t+a*p.x)+t*b;p.x+=c*cos(s*t+a*p.z);return cos(p+vec3(1,2,4));}
+    void main(){vec3 v=position*4.0+warp(position,uTime)*1.2;vec4 mv=modelViewMatrix*vec4(v,1.0);float r=length(v);float farF=1.0-smoothstep(5.0,6.5,r);float nearF=smoothstep(0.0,0.5,-mv.z);vA=farF*nearF;gl_PointSize=size*uRes.y/900.0/-mv.z;gl_PointSize=max(gl_PointSize,1.0);gl_Position=projectionMatrix*mv;}`,
+    fragmentShader:`uniform vec3 uColor;varying float vA;void main(){vec2 p=gl_PointCoord-0.5;float l=length(p);if(l>0.5)discard;float tex=smoothstep(0.5,0.0,l);gl_FragColor=vec4(uColor*tex,tex*vA*0.55);}`
+  }));motes.frustumCulled=false;motes.layers.set(3);gs.add(motes);
+
+  /* Animate */
+  const gStart=performance.now();let gLastT=gStart/1000,gScrollT=0,gScrollC=0;
+  window.addEventListener('scroll',()=>{const mxS=document.documentElement.scrollHeight-innerHeight;gScrollT=mxS>0?Math.max(0,Math.min(1,scrollY/mxS)):0;},{passive:true});
+
+  function gAnimate(){
+    requestAnimationFrame(gAnimate);
+    const now=performance.now(),t=now/1000,dt=Math.min(0.05,t-gLastT);gLastT=t;
+    const elapsed=now-gStart;
+    // Appear-in
+    const tA=Math.min(elapsed/2000,1),sm=tA*tA*(3-2*tA);gUniforms.iAnimate.value=sm;
+    if(elapsed>500){const tS=Math.min((elapsed-500)/1500,1),e4=1-Math.pow(1-tS,4);grp.position.z=Lerp(-20,0,e4);gUniforms.uOpacity.value=tS;}
+    gUniforms.iTime.value=t;
+    // Scroll
+    gScrollC+=(gScrollT-gScrollC)*0.08;
+    gcam.position.z=14-gScrollC*4;
+    gUniforms.uExpand.value=1+gScrollC*1;
+    const spin=0.125*(1+gScrollC*2.62)*dt;cloud.rotation.y+=spin;cloud.rotation.x+=spin*0.35;
+    // Motes
+    mU.uTime.value=t*0.8*8;motes.position.copy(gcam.position);
+    gfp.uniforms.iTime.value=t;
+    // Render
+    gcam.layers.set(1);gTC.render();gcam.layers.set(2);gBC.render();gcam.layers.set(3);gFC.render();
+  }
+  gAnimate();
+
+  window.addEventListener('resize',()=>{const w2=innerWidth,h2=innerHeight;gcam.aspect=w2/h2;gcam.updateProjectionMatrix();gr.setSize(w2,h2);
+    [gTC,gBC,gFC].forEach(c=>{c.setPixelRatio(Math.min(devicePixelRatio,1.5));c.setSize(w2,h2);});mU.uRes.value.set(w2,h2);});
+}
 
 canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); showFallback(); }, false);
 
