@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import NavUser from "@/components/nav-user";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,14 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </a>
             <div className="flex items-center gap-6 text-sm" style={{ color: '#9aa6c4' }}>
               <a href="/tracks" className="hover:text-white transition">Tracks</a>
-              <a href="/admin" className="hover:text-white transition">Admin</a>
-              <a
-                href="/login"
-                className="px-4 py-2 rounded-full transition"
-                style={{ background: 'rgba(93,240,168,.05)', border: '1px solid rgba(93,240,168,.2)', color: '#5df0a8' }}
-              >
-                Sign In
-              </a>
+              <NavUser />
             </div>
           </div>
         </nav>
