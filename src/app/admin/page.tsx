@@ -32,7 +32,7 @@ export default function AdminDashboard() {
         const { id, ...rest } = editing;
         await updateLesson(id, rest);
       } else {
-        await createLesson({ trackId: selectedTrack, title: editing.title || "Untitled", contentBody: editing.contentBody || undefined, audioUrl: editing.audioUrl || undefined, pdfUrl: editing.pdfUrl || undefined, meetLink: editing.meetLink || undefined, affiliateLink: editing.affiliateLink || undefined, orderIndex: editing.orderIndex ?? lessons.length, isPublished: editing.isPublished ?? false });
+        await createLesson({ trackId: selectedTrack, title: editing.title || "Untitled", description: editing.description || undefined, orderIndex: editing.orderIndex ?? lessons.length, isPublished: editing.isPublished ?? false });
       }
       setEditing(null);
       loadLessonsData(selectedTrack);
@@ -94,10 +94,7 @@ export default function AdminDashboard() {
                 {!l.isPublished && <span className="text-xs text-yellow-400 bg-[rgba(255,210,122,.1)] px-2 py-0.5 rounded">Draft</span>}
               </div>
               <div className="flex gap-3 mt-1 text-xs text-[#6b7796]">
-                {l.audioUrl && <span>🎧</span>}
-                {l.pdfUrl && <span>📄</span>}
-                {l.meetLink && <span>📹</span>}
-                {l.affiliateLink && <span>🔗</span>}
+                {l.description && <span>Details available</span>}
               </div>
             </div>
             <button onClick={() => setEditing(l)} className="text-sm text-[#9aa6c4] hover:text-white transition">Edit</button>
@@ -107,7 +104,7 @@ export default function AdminDashboard() {
       </div>
 
       <button
-        onClick={() => setEditing({ title: "", contentBody: "", audioUrl: "", pdfUrl: "", meetLink: "", affiliateLink: "", orderIndex: lessons.length, isPublished: false })}
+        onClick={() => setEditing({ title: "", description: "", orderIndex: lessons.length, isPublished: false })}
         className="px-5 py-2.5 rounded-full bg-[rgba(16,24,48,.65)] text-[#9aa6c4] text-sm font-semibold hover:bg-[rgba(150,175,230,.22)] transition"
       >
         + Add Lesson
@@ -119,11 +116,7 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold mb-5">{editing.id ? "Edit Lesson" : "New Lesson"}</h2>
             <div className="space-y-4">
               <input placeholder="Lesson title" value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition" />
-              <textarea placeholder="Content / Notes (markdown)" value={editing.contentBody || ""} onChange={(e) => setEditing({ ...editing, contentBody: e.target.value })} rows={5} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition resize-none" />
-              <input placeholder="Audio URL" value={editing.audioUrl || ""} onChange={(e) => setEditing({ ...editing, audioUrl: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition" />
-              <input placeholder="PDF URL" value={editing.pdfUrl || ""} onChange={(e) => setEditing({ ...editing, pdfUrl: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition" />
-              <input placeholder="Google Meet link" value={editing.meetLink || ""} onChange={(e) => setEditing({ ...editing, meetLink: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition" />
-              <input placeholder="Affiliate / Grodigital link" value={editing.affiliateLink || ""} onChange={(e) => setEditing({ ...editing, affiliateLink: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition" />
+              <textarea placeholder="Lesson description" value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} rows={5} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition resize-none" />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={editing.isPublished || false} onChange={(e) => setEditing({ ...editing, isPublished: e.target.checked })} className="accent-[#5df0a8]" />
                 Published
