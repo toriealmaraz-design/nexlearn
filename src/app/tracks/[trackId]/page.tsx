@@ -56,7 +56,7 @@ async function TrackDetailContent({ params }: { params: Promise<{ trackId: strin
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold group-hover:text-[#5df0a8] transition truncate">{lesson.title}</h3>
-                {lesson.description && <p className="text-xs text-[#6b7796] mt-1 truncate">{lesson.description}</p>}
+                {lesson.description && <p className="mt-1 text-xs text-[#6b7796] truncate">{lesson.description}</p>}
               </div>
               <span className="text-gray-600 group-hover:text-[#9aa6c4] transition">→</span>
             </Link>
