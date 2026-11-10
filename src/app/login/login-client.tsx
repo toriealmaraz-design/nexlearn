@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
@@ -25,6 +26,39 @@ export default function LoginClient() {
   const callbackUrl = searchParams.get("callbackUrl") || "/tracks";
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if ((event.nativeEvent as KeyboardEvent).isComposing || (event.nativeEvent as KeyboardEvent).keyCode === 229) return;
+    setError("");
+    setSubmitting(true);
+
+    try {
+      if (mode === "sign-up") {
+        const response = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => null);
+          throw new Error(result?.error || "Unable to create your account.");
+        }
+      }
+
+      const result = await signIn("credentials", { email, password, callbackUrl, redirect: false });
+      if (result?.error) throw new Error("Invalid email or password.");
+      window.location.assign(result?.url || callbackUrl);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Unable to sign in right now.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <main className="flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-10">
@@ -40,11 +74,12 @@ export default function LoginClient() {
 
         <div className="my-7 flex items-center gap-4 text-xs text-[#6b7796]" aria-hidden="true"><span className="h-px flex-1 bg-[rgba(150,175,230,.14)]" />OR<span className="h-px flex-1 bg-[rgba(150,175,230,.14)]" /></div>
 
-        <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
-          <label className="relative block"><span className="sr-only">Email address</span><MailIcon /><input type="email" autoComplete="email" placeholder="Email address" className="h-12 w-full rounded-[14px] border border-[rgba(150,175,230,.22)] bg-[rgba(55,62,92,.42)] pl-12 pr-4 text-sm text-white outline-none placeholder:text-[#7180a2] focus:border-[#12b7d4] focus:ring-2 focus:ring-[#12b7d4]/20" required /></label>
-          <label className="relative block"><span className="sr-only">Password</span><LockIcon /><input type={showPassword ? "text" : "password"} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} placeholder="Password" className="h-12 w-full rounded-[14px] border border-[rgba(150,175,230,.22)] bg-[rgba(55,62,92,.42)] pl-12 pr-12 text-sm text-white outline-none placeholder:text-[#7180a2] focus:border-[#12b7d4] focus:ring-2 focus:ring-[#12b7d4]/20" required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-3 top-3 text-[#7180a2] hover:text-white"><EyeIcon hidden={showPassword} /></button></label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <label className="relative block"><span className="sr-only">Email address</span><MailIcon /><input type="email" autoComplete="email" placeholder="Email address" value={email} onChange={(event) => setEmail(event.target.value)} className="h-12 w-full rounded-[14px] border border-[rgba(150,175,230,.22)] bg-[rgba(55,62,92,.42)] pl-12 pr-4 text-sm text-white outline-none placeholder:text-[#7180a2] focus:border-[#12b7d4] focus:ring-2 focus:ring-[#12b7d4]/20" required /></label>
+          <label className="relative block"><span className="sr-only">Password</span><LockIcon /><input type={showPassword ? "text" : "password"} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-12 w-full rounded-[14px] border border-[rgba(150,175,230,.22)] bg-[rgba(55,62,92,.42)] pl-12 pr-12 text-sm text-white outline-none placeholder:text-[#7180a2] focus:border-[#12b7d4] focus:ring-2 focus:ring-[#12b7d4]/20" required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-3 top-3 text-[#7180a2] hover:text-white"><EyeIcon hidden={showPassword} /></button></label>
+          {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
           {mode === "sign-in" && <div className="text-right"><a href="mailto:support@nexlearn.com?subject=Sign-in%20help" className="text-xs font-medium text-[#12d7ed] hover:text-white">Forgot password? Email me a sign-in link</a></div>}
-          <button type="submit" className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-[#10b8d2] via-[#087ae9] to-[#3014f2] text-sm font-semibold text-white transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#12b7d4]">{mode === "sign-in" ? "Sign In" : "Create Account"}<span aria-hidden="true" className="text-lg">→</span></button>
+          <button type="submit" disabled={submitting} className="flex h-12 w-full disabled:cursor-wait disabled:opacity-70 items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-[#10b8d2] via-[#087ae9] to-[#3014f2] text-sm font-semibold text-white transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#12b7d4]">{mode === "sign-in" ? "Sign In" : "Create Account"}<span aria-hidden="true" className="text-lg">→</span></button>
         </form>
 
         <p className="mt-6 text-center text-xs text-[#6b7796]">Staff accounts only. Clients don&apos;t need to sign in.</p>
