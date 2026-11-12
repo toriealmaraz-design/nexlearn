@@ -2,9 +2,11 @@ import { Suspense } from "react";
 import LoginClient from "./login-client";
 
 export default function LoginPage() {
+  const googleAuthEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+
   return (
     <Suspense fallback={<div className="max-w-sm mx-auto px-4 py-20 text-center text-[#6b7796]">Loading...</div>}>
-      <LoginClient />
+      <LoginClient googleAuthEnabled={googleAuthEnabled} />
     </Suspense>
   );
 }
