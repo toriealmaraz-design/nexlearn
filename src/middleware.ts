@@ -4,10 +4,15 @@ import { NextResponse } from "next/server";
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
-  // Public routes — no auth needed
+  // Public routes — lessons stay open; sign-in is only needed to save progress.
+  if (pathname === "/landing.html") {
+    return NextResponse.redirect(new URL("/", req.url), 308);
+  }
+
   if (
     pathname === "/" ||
-    pathname === "/landing.html" ||
+    pathname === "/tracks" ||
+    pathname.startsWith("/tracks/") ||
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||

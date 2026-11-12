@@ -1,230 +1,235 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { auth } from "@/lib/auth";
+import type { Session } from "next-auth";
+import SelfAuditChecklist from "@/components/self-audit-checklist";
+import { getCurriculumPhase } from "@/lib/curriculum-phases";
 import { db } from "@/lib/db";
-import { lessons as lessonsTable, chapters as chaptersTable } from "@/lib/schema";
-import { eq, asc } from "drizzle-orm";
-import type { Lesson, Chapter } from "@/lib/types";
+import { chapters, lessons, tracks, userProgress } from "@/lib/schema";
+import type { Chapter, Lesson, Track } from "@/lib/types";
+import ProgressControl from "./progress-control";
 
-async function LessonDetailContent({
-  params,
-}: {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type LessonPageProps = {
   params: Promise<{ trackId: string; lessonId: string }>;
-}) {
+  searchParams: Promise<{ chapter?: string }>;
+};
+
+async function LessonDetailContent({ params, searchParams }: LessonPageProps) {
   await connection();
-  const { trackId, lessonId } = await params;
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const [{ trackId, lessonId }, query] = await Promise.all([params, searchParams]);
+  if (!UUID_PATTERN.test(trackId) || !UUID_PATTERN.test(lessonId)) notFound();
 
-  if (!uuidPattern.test(trackId) || !uuidPattern.test(lessonId)) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-[#6b7796]">Lesson not found.</div>;
+  let track: Track | undefined;
+  let lesson: Lesson | undefined;
+  let allChapters: Chapter[] = [];
+  let session: Session | null = null;
+  const completedChapterIds = new Set<string>();
+
+  try {
+    const [trackRows, lessonRows] = await Promise.all([
+      db.select().from(tracks).where(eq(tracks.id, trackId)).limit(1),
+      db
+        .select()
+        .from(lessons)
+        .where(and(eq(lessons.id, lessonId), eq(lessons.trackId, trackId), eq(lessons.isPublished, true)))
+        .limit(1),
+    ]);
+    track = trackRows[0];
+    lesson = lessonRows[0];
+
+    if (track && lesson) {
+      allChapters = await db
+        .select()
+        .from(chapters)
+        .where(eq(chapters.lessonId, lessonId))
+        .orderBy(asc(chapters.orderIndex));
+      session = await auth();
+      const userId = session?.user?.id;
+
+      if (userId && allChapters.length > 0) {
+        const completedRows = await db
+          .select({ chapterId: userProgress.chapterId })
+          .from(userProgress)
+          .where(and(
+            eq(userProgress.userId, userId),
+            eq(userProgress.completed, true),
+            inArray(userProgress.chapterId, allChapters.map((chapter) => chapter.id)),
+          ));
+        for (const row of completedRows) completedChapterIds.add(row.chapterId);
+      }
+    }
+  } catch {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+        <p className="font-medium text-[var(--foreground)]">The learning content is temporarily unavailable.</p>
+        <Link href="/tracks" className="mt-3 inline-block text-sm text-[var(--accent)] underline underline-offset-4">Back to tracks</Link>
+      </div>
+    );
   }
 
-  const [lesson] = await db.select().from(lessonsTable).where(eq(lessonsTable.id, lessonId)).limit(1);
-  if (!lesson) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-[#6b7796]">Lesson not found.</div>;
-  }
+  if (!track || !lesson) notFound();
 
-  const allChapters: Chapter[] = await db.select().from(chaptersTable)
-    .where(eq(chaptersTable.lessonId, lessonId))
-    .orderBy(asc(chaptersTable.orderIndex));
-
-  const totalChapters = allChapters.length;
-  // TODO: fetch real progress from user_progress table when auth is wired
-  const completedCount = 0;
-
-  // Default to first chapter
-  const activeChapter = allChapters[0] || null;
+  const selectedIndex = allChapters.findIndex((chapter) => chapter.id === query.chapter);
+  const activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  const activeChapter = allChapters[activeIndex] ?? null;
+  const phase = getCurriculumPhase(lesson.phase);
+  const previousChapter = activeIndex > 0 ? allChapters[activeIndex - 1] : null;
+  const nextChapter = activeIndex < allChapters.length - 1 ? allChapters[activeIndex + 1] : null;
+  const callbackUrl = activeChapter
+    ? `/tracks/${trackId}/lessons/${lessonId}?chapter=${activeChapter.id}`
+    : `/tracks/${trackId}/lessons/${lessonId}`;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Back link */}
-      <Link href={`/tracks/${trackId}`} className="text-sm text-[#6b7796] hover:text-[#9aa6c4] transition mb-6 inline-block">
-        ← Back to Track
-      </Link>
-
-      {/* Lesson header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-3">{lesson.title}</h1>
-        {lesson.description && (
-          <p className="text-[#9aa6c4] text-base leading-relaxed">{lesson.description}</p>
-        )}
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+      <div className="mb-8 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--muted-2)]">
+        <Link href="/tracks" className="transition hover:text-[var(--accent)]">Tracks</Link>
+        <span aria-hidden="true">/</span>
+        <Link href={`/tracks/${trackId}`} className="max-w-56 truncate transition hover:text-[var(--accent)]">{track.title}</Link>
+        <span aria-hidden="true">/</span>
+        <span className="max-w-64 truncate text-[var(--muted)]">{lesson.title}</span>
       </div>
 
-      {/* Progress bar */}
-      {totalChapters > 0 && (
-        <div className="mb-8">
-          <p className="text-sm text-[#6b7796] mb-2">{completedCount} of {totalChapters} sections completed</p>
-          <div className="h-2 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,.06)' }}>
-            <div className="h-full rounded-full" style={{
-              width: `${totalChapters > 0 ? (completedCount / totalChapters) * 100 : 0}%`,
-              background: 'linear-gradient(90deg, #2fd38a, #5df0a8)'
-            }} />
-            {completedCount < totalChapters && (
-              <div className="h-full" style={{
-                width: `${((totalChapters - completedCount) / totalChapters) * 100}%`,
-                background: 'rgba(255,100,100,.25)'
-              }} />
-            )}
+      <header className="mb-8 max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[.15em] text-[var(--accent)]">{phase.label} · {lesson.orderIndex !== null ? `Module ${String(lesson.orderIndex + 1).padStart(2, "0")}` : "Module"}</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{lesson.title}</h1>
+        {lesson.description && <p className="mt-4 text-base leading-7 text-[var(--muted)]">{lesson.description}</p>}
+        <p className="mt-4 text-sm text-[var(--muted-2)]">Read at your own pace. Sign in is optional and only saves your progress.</p>
+      </header>
+
+      {session?.user && allChapters.length > 0 && (
+        <section className="mb-8 max-w-3xl rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4" aria-label="Learning progress">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-[var(--muted)]">Your progress in this module</span>
+            <span className="tabular-nums text-[var(--foreground)]">{completedChapterIds.size} / {allChapters.length} sections</span>
           </div>
-        </div>
+          <progress className="mt-3 h-1.5 w-full accent-[var(--accent)]" value={completedChapterIds.size} max={allChapters.length} aria-label="Completed sections" />
+        </section>
       )}
 
-      {/* Two-column layout: TOC sidebar + chapter content */}
-      <div className="flex gap-8" style={{ minHeight: '60vh' }}>
-        {/* Sidebar: Table of Contents */}
-        <aside className="w-72 shrink-0 hidden lg:block">
-          <div className="sticky top-24 p-5 rounded-2xl border border-[rgba(150,175,230,.12)]" style={{ background: 'rgba(12,18,38,.55)', backdropFilter: 'blur(14px)' }}>
-            <h2 className="text-base font-bold mb-4">Table of Contents</h2>
-            <div className="space-y-1">
-              {allChapters.map((ch, i) => {
-                const isActive = activeChapter?.id === ch.id;
-                // TODO: check real completion status
-                const isCompleted = false;
-                return (
-                  <a
-                    key={ch.id}
-                    href={`/tracks/${trackId}/lessons/${lessonId}?chapter=${ch.id}`}
-                    className={`flex items-start gap-3 p-3 rounded-xl text-sm transition ${
-                      isActive
-                        ? 'bg-[rgba(93,240,168,.08)] border border-[rgba(93,240,168,.15)]'
-                        : 'hover:bg-[rgba(255,255,255,.04)]'
-                    }`}
-                  >
-                    <span className="mt-0.5 shrink-0">
-                      {isCompleted ? (
-                        <svg viewBox="0 0 20 20" width="18" height="18" fill="none"><circle cx="10" cy="10" r="9" stroke="#5df0a8" strokeWidth="1.5"/><path d="m7 10 2 2 4-4" stroke="#5df0a8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      ) : (
-                        <svg viewBox="0 0 20 20" width="18" height="18" fill="none"><circle cx="10" cy="10" r="9" stroke="#6b7796" strokeWidth="1.5"/><text x="10" y="14" textAnchor="middle" fill="#6b7796" fontSize="10" fontWeight="600">{i + 1}</text></svg>
-                      )}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`leading-snug ${isActive ? 'text-[#f3f6ff] font-semibold' : 'text-[#9aa6c4]'}`}>{ch.title}</p>
-                      {ch.durationMinutes && ch.durationMinutes > 0 && (
-                        <p className="text-xs text-[#6b7796] mt-1">{ch.durationMinutes} min</p>
-                      )}
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
+      {allChapters.length > 0 && (
+        <details className="mb-6 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4 lg:hidden">
+          <summary className="cursor-pointer text-sm font-medium text-[var(--foreground)]">Sections in this module ({allChapters.length})</summary>
+          <nav aria-label="Lesson sections" className="mt-4 flex flex-col gap-1">
+            {allChapters.map((chapter, index) => (
+              <Link key={chapter.id} href={`/tracks/${trackId}/lessons/${lessonId}?chapter=${chapter.id}`} aria-current={activeChapter?.id === chapter.id ? "page" : undefined} className={`rounded-lg px-3 py-2 text-sm transition ${activeChapter?.id === chapter.id ? "bg-[rgba(93,240,168,.1)] text-[var(--accent)]" : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"}`}>
+                <span className="mr-2 tabular-nums text-[var(--muted-2)]">{String(index + 1).padStart(2, "0")}</span>{chapter.title}
+                {chapter.durationMinutes ? <span className="ml-2 text-xs text-[var(--muted-2)]">{chapter.durationMinutes} min</span> : null}
+              </Link>
+            ))}
+          </nav>
+        </details>
+      )}
 
-        {/* Main content area */}
-        <div className="flex-1 min-w-0">
+      <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        {allChapters.length > 0 && (
+          <aside className="hidden lg:block">
+            <nav aria-label="Lesson sections" className="sticky top-24 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+              <h2 className="mb-3 text-sm font-semibold text-[var(--foreground)]">In this module</h2>
+              <ol className="flex flex-col gap-1">
+                {allChapters.map((chapter, index) => (
+                  <li key={chapter.id}>
+                    <Link href={`/tracks/${trackId}/lessons/${lessonId}?chapter=${chapter.id}`} aria-current={activeChapter?.id === chapter.id ? "page" : undefined} className={`flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm transition ${activeChapter?.id === chapter.id ? "bg-[rgba(93,240,168,.1)] text-[var(--accent)]" : "text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"}`}>
+                      <span className="mt-0.5 shrink-0 text-xs tabular-nums text-[var(--muted-2)]">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="min-w-0">
+                        <span className="block leading-5">{chapter.title}</span>
+                        {chapter.durationMinutes ? <span className="mt-1 block text-xs text-[var(--muted-2)]">{chapter.durationMinutes} min</span> : null}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          </aside>
+        )}
+
+        <article className="min-w-0 max-w-3xl">
           {activeChapter ? (
-            <div>
-              {/* Chapter header */}
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold">{activeChapter.title}</h2>
-                  {activeChapter.durationMinutes && activeChapter.durationMinutes > 0 && (
-                    <p className="text-sm text-[#6b7796] mt-1">Duration: {activeChapter.durationMinutes} min</p>
-                  )}
-                </div>
-                {/* TODO: real completion badge */}
+            <>
+              <div className="mb-6 border-b border-[var(--line)] pb-5">
+                <h2 className="text-2xl font-semibold tracking-tight">{activeChapter.title}</h2>
+                {activeChapter.durationMinutes ? <p className="mt-2 text-sm text-[var(--muted-2)]">About {activeChapter.durationMinutes} minutes</p> : null}
               </div>
 
-              {/* Meet link */}
               {activeChapter.meetLink && (
-                <a href={activeChapter.meetLink} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mb-6 px-6 py-3 rounded-full bg-[rgba(58,108,255,.1)] border border-[rgba(58,108,255,.2)] text-[#3a6cff] font-semibold text-sm hover:bg-[rgba(58,108,255,.2)] transition">
-                  📹 Join Live Class
+                <a href={activeChapter.meetLink} target="_blank" rel="noopener noreferrer" className="mb-6 inline-flex min-h-10 items-center rounded-full border border-[var(--line-strong)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                  Join live session <span className="ml-2" aria-hidden="true">↗</span>
                 </a>
               )}
 
-              {/* Audio player */}
               {activeChapter.audioUrl && (
-                <div className="mb-6 p-5 rounded-xl bg-[rgba(12,18,38,.55)] border border-[rgba(150,175,230,.12)]">
-                  <p className="text-sm text-[#9aa6c4] mb-3 font-semibold">Listen to this section:</p>
-                  <audio controls className="w-full" preload="metadata">
+                <div className="mb-6 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+                  <p className="mb-3 text-sm font-medium text-[var(--foreground)]">Listen to this section</p>
+                  <audio controls preload="metadata" className="w-full" aria-label={`Audio for ${activeChapter.title}`}>
                     <source src={activeChapter.audioUrl} type="audio/mpeg" />
                   </audio>
                 </div>
               )}
 
-              {/* Content body */}
-              {activeChapter.contentBody && (
-                <div className="prose prose-invert prose-emerald max-w-none mb-8 leading-relaxed whitespace-pre-wrap text-[#9aa6c4]">
-                  {activeChapter.contentBody}
-                </div>
+              {activeChapter.contentBody ? (
+                <div className="mb-8 whitespace-pre-wrap break-words text-[15px] leading-7 text-[var(--muted)]">{activeChapter.contentBody}</div>
+              ) : (
+                <p className="mb-8 text-sm text-[var(--muted-2)]">Lesson text is being prepared for this section.</p>
               )}
 
-              {/* PDF */}
               {activeChapter.pdfUrl && (
-                <div className="mb-8 p-5 rounded-xl bg-[rgba(12,18,38,.55)] border border-[rgba(150,175,230,.12)]">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm text-[#9aa6c4] font-semibold">📄 Resources</p>
-                    <a href={activeChapter.pdfUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-xs px-4 py-2 rounded-full bg-[rgba(93,240,168,.1)] border border-[rgba(93,240,168,.2)] text-[#5df0a8] hover:bg-[rgba(93,240,168,.2)] transition">
-                      Download PDF
-                    </a>
+                <div className="mb-8 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-[var(--foreground)]">Section resource</p>
+                    <a href={activeChapter.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--accent)] underline underline-offset-4">Open PDF</a>
                   </div>
-                  <iframe src={activeChapter.pdfUrl} className="w-full h-[500px] rounded-lg border border-[rgba(150,175,230,.22)]" title="PDF Viewer" />
+                  <iframe src={activeChapter.pdfUrl} title={`PDF resource for ${activeChapter.title}`} className="h-[28rem] w-full rounded-lg border border-[var(--line)]" />
                 </div>
               )}
 
-              {/* Affiliate CTA */}
               {activeChapter.affiliateLink && (
-                <div className="p-8 rounded-2xl bg-gradient-to-br from-[#5df0a8]/5 to-[#5df0a8]/5 border border-[rgba(93,240,168,.18)] text-center mb-8">
-                  <h3 className="text-xl font-bold mb-3">Ready to Level Up?</h3>
-                  <p className="text-[#9aa6c4] text-sm mb-5 max-w-md mx-auto">Continue your learning journey with the full professional masterclass on Grodigital.</p>
-                  <a href={activeChapter.affiliateLink} target="_blank" rel="noopener noreferrer"
-                    className="inline-block px-8 py-3 rounded-full bg-gradient-to-r from-[#5df0a8] to-[#2fd38a] text-[#032018] font-bold text-sm shadow-lg hover:shadow-[rgba(93,240,168,.3)] transition-all hover:-translate-y-0.5">
-                    Access Full Course →
+                <aside className="mb-8 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--muted-2)]">Optional partner resource</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--muted)]">Continue with an external course or resource if it fits your learning path.</p>
+                  <a href={activeChapter.affiliateLink} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-10 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-2)]">
+                    Open external resource <span className="ml-2" aria-hidden="true">↗</span>
                   </a>
-                </div>
+                </aside>
               )}
 
-              {/* Mark complete button */}
-              <div className="flex items-center gap-4 mb-8 p-4 rounded-xl border border-[rgba(150,175,230,.12)]" style={{ background: 'rgba(12,18,38,.55)' }}>
-                <button className="px-6 py-2.5 rounded-full bg-[#5df0a8] text-[#032018] font-bold text-sm hover:bg-[#2fd38a] transition">
-                  ✓ Mark as Complete
-                </button>
-                <span className="text-sm text-[#6b7796]">Sign in to save your progress</span>
-              </div>
+              {track.trackType === "internal" && activeIndex === allChapters.length - 1 && <div className="mb-8"><SelfAuditChecklist /></div>}
 
-              {/* Discussion */}
-              <div className="pt-8 border-t border-[rgba(150,175,230,.12)]">
-                <h3 className="text-lg font-bold mb-4">💬 Discussion</h3>
-                <p className="text-[#6b7796] text-sm">Sign in with Google to join the conversation.</p>
-              </div>
-            </div>
+              {activeChapter && (
+                <ProgressControl
+                  chapterId={activeChapter.id}
+                  completed={completedChapterIds.has(activeChapter.id)}
+                  isSignedIn={Boolean(session?.user?.id)}
+                  loginHref={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+                />
+              )}
+
+              <nav aria-label="Module navigation" className="mt-8 flex items-center justify-between gap-4 border-t border-[var(--line)] pt-5">
+                {previousChapter ? (
+                  <Link href={`/tracks/${trackId}/lessons/${lessonId}?chapter=${previousChapter.id}`} className="text-sm text-[var(--muted)] transition hover:text-[var(--accent)]">← Previous section</Link>
+                ) : <span />}
+                {nextChapter ? (
+                  <Link href={`/tracks/${trackId}/lessons/${lessonId}?chapter=${nextChapter.id}`} className="text-sm font-medium text-[var(--accent)] transition hover:text-[var(--foreground)]">Next section →</Link>
+                ) : (
+                  <Link href={`/tracks/${trackId}`} className="text-sm font-medium text-[var(--accent)] transition hover:text-[var(--foreground)]">Back to track →</Link>
+                )}
+              </nav>
+            </>
           ) : (
-            <div className="text-center py-20 text-[#6b7796]">
-              <p className="text-lg">No chapters yet.</p>
-              <p className="text-sm mt-2">This lesson is being prepared — check back soon!</p>
+            <div className="rounded-2xl border border-dashed border-[var(--line-strong)] px-6 py-12 text-center">
+              <p className="font-medium text-[var(--foreground)]">No sections in this module yet.</p>
+              <p className="mt-2 text-sm text-[var(--muted)]">The lesson will be ready as soon as its content is published.</p>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Mobile TOC (below content on small screens) */}
-      <div className="lg:hidden mt-8 p-5 rounded-2xl border border-[rgba(150,175,230,.12)]" style={{ background: 'rgba(12,18,38,.55)' }}>
-        <h2 className="text-base font-bold mb-4">All Sections</h2>
-        <div className="space-y-2">
-          {allChapters.map((ch, i) => (
-            <a key={ch.id} href={`/tracks/${trackId}/lessons/${lessonId}?chapter=${ch.id}`}
-              className="flex items-center gap-3 p-3 rounded-xl text-sm hover:bg-[rgba(255,255,255,.04)] transition">
-              <span className="w-7 h-7 rounded-lg bg-[rgba(93,240,168,.1)] flex items-center justify-center text-[#5df0a8] font-bold text-xs shrink-0">{i + 1}</span>
-              <span className="text-[#9aa6c4] flex-1">{ch.title}</span>
-              {ch.durationMinutes && ch.durationMinutes > 0 && <span className="text-xs text-[#6b7796]">{ch.durationMinutes} min</span>}
-            </a>
-          ))}
-        </div>
+        </article>
       </div>
     </div>
   );
 }
 
-export default function LessonDetailPage({
-  params,
-}: {
-  params: Promise<{ trackId: string; lessonId: string }>;
-}) {
-  return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-16 text-[#6b7796]">Loading lesson...</div>}>
-      <LessonDetailContent params={params} />
-    </Suspense>
-  );
+export default function LessonDetailPage(props: LessonPageProps) {
+  return <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-16 text-sm text-[var(--muted)]">Loading lesson…</div>}><LessonDetailContent {...props} /></Suspense>;
 }

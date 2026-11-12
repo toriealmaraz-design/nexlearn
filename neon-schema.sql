@@ -33,6 +33,7 @@ CREATE TABLE lessons (
   cover_image_url TEXT,
   order_index INTEGER DEFAULT 0,
   is_published BOOLEAN DEFAULT false,
+  phase TEXT NOT NULL DEFAULT 'foundations',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

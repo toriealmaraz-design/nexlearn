@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import type { CurriculumPhase } from "@/lib/curriculum-phases";
 
 // ── Learning tracks (categories) ──
 export const tracks = pgTable("tracks", {
@@ -20,6 +21,7 @@ export const lessons = pgTable("lessons", {
   coverImageUrl: text("cover_image_url"),
   orderIndex: integer("order_index").default(0),
   isPublished: boolean("is_published").default(false),
+  phase: text("phase").$type<CurriculumPhase>().notNull().default("foundations"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
