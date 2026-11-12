@@ -1,10 +1,8 @@
 import { Suspense } from "react";
-import { auth } from "@/lib/auth";
 import { connection } from "next/server";
-import { db } from "@/lib/db";
-import { users } from "@/lib/schema";
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { resolveAdminAccount } from "@/lib/admin-access";
 import AdminDashboard from "./admin-client";
 
 async function AdminContent() {
@@ -15,14 +13,13 @@ async function AdminContent() {
     redirect("/login?callbackUrl=/admin");
   }
 
-  const [user] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-
-  if (!user?.isAdmin) {
+  const adminAccount = await resolveAdminAccount(session);
+  if (!adminAccount) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">🔒 Admin Access Required</h1>
+        <h1 className="mb-4 text-2xl font-bold">Admin Access Required</h1>
         <p className="text-[#9aa6c4]">You need admin privileges to access the Presentation Engine.</p>
-        <p className="text-[#6b7796] text-sm mt-4">Signed in as {session.user.email}</p>
+        <p className="mt-4 text-sm text-[#6b7796]">Signed in as {session.user.email}</p>
       </div>
     );
   }
