@@ -3,6 +3,7 @@
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-access";
+import { CURRICULUM_PHASES, type CurriculumPhase } from "@/lib/curriculum-phases";
 import { db } from "@/lib/db";
 import { chapters, lessons, tracks } from "@/lib/schema";
 
@@ -42,6 +43,13 @@ function requireBoolean(value: unknown, field: string) {
   return value;
 }
 
+function requirePhase(value: unknown): CurriculumPhase {
+  if (typeof value !== "string" || !CURRICULUM_PHASES.some((phase) => phase.id === value)) {
+    throw new Error("Invalid curriculum phase");
+  }
+  return value as CurriculumPhase;
+}
+
 function revalidateContent() {
   revalidatePath("/admin");
   revalidatePath("/tracks");
@@ -79,6 +87,7 @@ export async function createLesson(data: {
   description?: string;
   orderIndex?: number;
   isPublished?: boolean;
+  phase?: CurriculumPhase;
 }) {
   await requireAdmin();
   const trackId = requireUuid(data?.trackId, "track ID");
@@ -86,10 +95,11 @@ export async function createLesson(data: {
   const description = optionalText(data?.description, "lesson description", 5_000);
   const orderIndex = nonNegativeInteger(data?.orderIndex, "lesson order");
   const isPublished = data?.isPublished === undefined ? false : requireBoolean(data.isPublished, "publish state");
+  const phase = data?.phase === undefined ? "foundations" : requirePhase(data.phase);
   const [track] = await db.select({ id: tracks.id }).from(tracks).where(eq(tracks.id, trackId)).limit(1);
   if (!track) throw new Error("Track not found");
 
-  await db.insert(lessons).values({ trackId, title, description, orderIndex, isPublished });
+  await db.insert(lessons).values({ trackId, title, description, orderIndex, isPublished, phase });
   revalidateContent();
 }
 
@@ -104,6 +114,7 @@ export async function updateLesson(id: string, data: Record<string, unknown>) {
   if (data.coverImageUrl !== undefined) updates.coverImageUrl = optionalText(data.coverImageUrl, "cover image URL", 2_000);
   if (data.orderIndex !== undefined) updates.orderIndex = nonNegativeInteger(data.orderIndex, "lesson order");
   if (data.isPublished !== undefined) updates.isPublished = requireBoolean(data.isPublished, "publish state");
+  if (data.phase !== undefined) updates.phase = requirePhase(data.phase);
   if (Object.keys(updates).length === 0) throw new Error("No valid lesson fields provided");
 
   await db.update(lessons).set(updates).where(eq(lessons.id, lessonId));

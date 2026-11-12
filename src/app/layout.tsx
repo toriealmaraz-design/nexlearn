@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import NavUser from "@/components/nav-user";
 import "./globals.css";
 
@@ -14,8 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NexLearn — Learn. Build. Earn.",
-  description: "Free technical classes & digital marketing literacy. Powered by vibe coding and curated affiliate pathways.",
+  title: "NexLearn — Build with AI. Ship with confidence.",
+  description: "Free, self-paced technical and growth lessons—from building with AI to security, deployment, and product growth.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#04060f",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -25,18 +30,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col" style={{ background: '#04060f', color: '#f3f6ff' }}>
-        <nav className="border-b sticky top-0 z-50 backdrop-blur-md" style={{ borderColor: 'rgba(150,175,230,.12)', background: 'rgba(4,6,15,.85)' }}>
-          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-            <a href="/" className="text-xl font-bold tracking-tight" style={{ letterSpacing: '.12em' }}>
-              <span style={{ color: '#5df0a8' }}>▲</span>{" "}
-              <span style={{ color: '#f3f6ff' }}>NexLearn</span>
-            </a>
-            <div className="flex items-center gap-6 text-sm" style={{ color: '#9aa6c4' }}>
-              <a href="/tracks" className="hover:text-white transition">Tracks</a>
+        <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[rgba(4,6,15,.88)] backdrop-blur-md">
+          <nav aria-label="Primary navigation" className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
+            <Link href="/" className="text-lg font-semibold tracking-tight text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+              <span aria-hidden="true" className="mr-2 text-[var(--accent)]">▲</span>NexLearn
+            </Link>
+            <div className="flex items-center gap-4 text-sm sm:gap-6">
+              <Link href="/#route-heading" className="hidden text-[var(--muted)] transition hover:text-[var(--foreground)] sm:inline">How it works</Link>
+              <Link href="/tracks" className="text-[var(--muted)] transition hover:text-[var(--foreground)]">Tracks</Link>
               <NavUser />
             </div>
-          </div>
-        </nav>
+          </nav>
+        </header>
         <main className="flex-1">{children}</main>
       </body>
     </html>

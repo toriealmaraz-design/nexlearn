@@ -1,76 +1,133 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { connection } from "next/server";
+import { CURRICULUM_PHASES, getCurriculumPhase } from "@/lib/curriculum-phases";
 import { db } from "@/lib/db";
-import { tracks as tracksTable, lessons as lessonsTable } from "@/lib/schema";
-import { eq, and, asc } from "drizzle-orm";
-import type { Track, Lesson } from "@/lib/types";
+import { chapters, lessons, tracks } from "@/lib/schema";
+import type { Lesson, Track } from "@/lib/types";
 
-async function TrackDetailContent({ params }: { params: Promise<{ trackId: string }> }) {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type TrackPageProps = {
+  params: Promise<{ trackId: string }>;
+};
+
+async function TrackDetailContent({ params }: TrackPageProps) {
   await connection();
   const { trackId } = await params;
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!UUID_PATTERN.test(trackId)) notFound();
 
-  if (!uuidPattern.test(trackId)) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-[#6b7796]">Track not found.</div>;
+  let track: Track | undefined;
+  let publishedLessons: Lesson[] = [];
+  let chapterRows: Array<{ lessonId: string }> = [];
+
+  try {
+    [track] = await db.select().from(tracks).where(eq(tracks.id, trackId)).limit(1);
+    if (track) {
+      publishedLessons = await db
+        .select()
+        .from(lessons)
+        .where(and(eq(lessons.trackId, trackId), eq(lessons.isPublished, true)))
+        .orderBy(asc(lessons.orderIndex));
+
+      if (publishedLessons.length > 0) {
+        chapterRows = await db
+          .select({ lessonId: chapters.lessonId })
+          .from(chapters)
+          .where(inArray(chapters.lessonId, publishedLessons.map((lesson) => lesson.id)));
+      }
+    }
+  } catch {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
+        <p className="font-medium text-[var(--foreground)]">The curriculum is temporarily unavailable.</p>
+        <Link href="/tracks" className="mt-3 inline-block text-sm text-[var(--accent)] underline underline-offset-4">Try again</Link>
+      </div>
+    );
   }
 
-  const [track] = await db.select().from(tracksTable).where(eq(tracksTable.id, trackId)).limit(1);
-  if (!track) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-[#6b7796]">Track not found.</div>;
-  }
-
-  const ls: Lesson[] = await db.select().from(lessonsTable)
-    .where(and(eq(lessonsTable.trackId, trackId), eq(lessonsTable.isPublished, true)))
-    .orderBy(asc(lessonsTable.orderIndex));
+  if (!track) notFound();
+  const sectionCounts = chapterRows.reduce((counts, row) => {
+    counts.set(row.lessonId, (counts.get(row.lessonId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+  const phaseGroups = CURRICULUM_PHASES
+    .map((phase, phaseOrder) => ({
+      phase,
+      phaseOrder: phaseOrder + 1,
+      lessons: publishedLessons.filter((lesson) => lesson.phase === phase.id),
+    }))
+    .filter((group) => group.lessons.length > 0);
+  const moduleCount = publishedLessons.length;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-16">
-      <Link href="/tracks" className="text-sm text-[#6b7796] hover:text-[#9aa6c4] transition mb-6 inline-block">← All Tracks</Link>
-      <div className="flex items-center gap-3 mb-2">
-        <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-          track.trackType === 'internal'
-            ? 'bg-[rgba(93,240,168,.1)] text-[#5df0a8] border border-[rgba(93,240,168,.2)]'
-            : 'bg-[rgba(93,240,168,.08)] text-[#5df0a8] border border-[rgba(93,240,168,.18)]'
-        }`}>
-          {track.trackType === 'internal' ? 'Live Classes' : 'Guided Pathway'}
-        </span>
-      </div>
-      <h1 className="text-4xl font-bold mb-4">{track.title}</h1>
-      <p className="text-[#9aa6c4] text-lg mb-12">{track.description}</p>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
+      <Link href="/tracks" className="text-sm text-[var(--muted-2)] underline decoration-[var(--line-strong)] underline-offset-4 transition hover:text-[var(--accent)]">
+        ← All tracks
+      </Link>
 
-      {ls.length === 0 ? (
-        <div className="text-center py-16 text-[#6b7796]">
-          <p>No lessons published yet. Stay tuned!</p>
+      <header className="mt-8 max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--accent)]">
+          {track.trackType === "internal" ? "Technical & AI" : "Marketing & growth"} · {moduleCount} {moduleCount === 1 ? "module" : "modules"}
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{track.title}</h1>
+        {track.description && <p className="mt-4 text-base leading-7 text-[var(--muted)]">{track.description}</p>}
+        <p className="mt-4 text-sm text-[var(--muted-2)]">Read any published module without signing in. Sign in only if you want progress saved.</p>
+      </header>
+
+      {phaseGroups.length > 0 ? (
+        <div className="mt-12 flex flex-col gap-10">
+          {phaseGroups.map(({ phase, phaseOrder, lessons: phaseLessons }) => (
+            <section key={phase.id} aria-labelledby={`phase-${phase.id}`}>
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[.14em] text-[var(--muted-2)]">Phase {String(phaseOrder).padStart(2, "0")}</p>
+                  <h2 id={`phase-${phase.id}`} className="mt-1 text-xl font-semibold text-[var(--foreground)]">{phase.label}</h2>
+                  <p className="mt-1 text-sm text-[var(--muted)]">{phase.description}</p>
+                </div>
+                <span className="text-xs text-[var(--muted-2)]">{phaseLessons.length} {phaseLessons.length === 1 ? "module" : "modules"}</span>
+              </div>
+              <ol className="flex flex-col gap-3">
+                {phaseLessons.map((lesson, lessonIndex) => {
+                  const sectionCount = sectionCounts.get(lesson.id) ?? 0;
+                  const phaseDetails = getCurriculumPhase(lesson.phase);
+                  return (
+                    <li key={lesson.id}>
+                      <Link
+                        href={`/tracks/${trackId}/lessons/${lesson.id}`}
+                        className="group flex items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4 transition hover:border-[rgba(93,240,168,.35)] hover:bg-[var(--glass-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:p-5"
+                      >
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] text-sm font-medium tabular-nums text-[var(--muted)]">
+                          {String(lessonIndex + 1).padStart(2, "0")}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-[var(--foreground)] transition group-hover:text-[var(--accent)]">{lesson.title}</span>
+                          {lesson.description && <span className="mt-1 block line-clamp-2 text-sm leading-5 text-[var(--muted)]">{lesson.description}</span>}
+                        </span>
+                        <span className="hidden shrink-0 text-xs text-[var(--muted-2)] sm:block">
+                          {sectionCount} {sectionCount === 1 ? "section" : "sections"} · {phaseDetails.label}
+                        </span>
+                        <span aria-hidden="true" className="shrink-0 text-[var(--accent)]">→</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))}
         </div>
       ) : (
-        <div className="space-y-3">
-          {ls.map((lesson, i) => (
-            <Link
-              key={lesson.id}
-              href={`/tracks/${trackId}/lessons/${lesson.id}`}
-              className="flex items-center gap-4 p-5 rounded-xl bg-[rgba(12,18,38,.55)] border border-[rgba(150,175,230,.12)] hover:border-[rgba(93,240,168,.3)] transition group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-[rgba(93,240,168,.1)] flex items-center justify-center text-[#5df0a8] font-bold text-sm shrink-0">
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold group-hover:text-[#5df0a8] transition truncate">{lesson.title}</h3>
-                {lesson.description && <p className="mt-1 text-xs text-[#6b7796] truncate">{lesson.description}</p>}
-              </div>
-              <span className="text-gray-600 group-hover:text-[#9aa6c4] transition">→</span>
-            </Link>
-          ))}
+        <div className="mt-12 rounded-2xl border border-dashed border-[var(--line-strong)] px-6 py-12 text-center">
+          <p className="font-medium text-[var(--foreground)]">No modules are published in this track yet.</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Published lessons will appear here as soon as they are ready.</p>
         </div>
       )}
     </div>
   );
 }
 
-export default function TrackDetailPage({ params }: { params: Promise<{ trackId: string }> }) {
-  return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-16 text-[#6b7796]">Loading track...</div>}>
-      <TrackDetailContent params={params} />
-    </Suspense>
-  );
+export default function TrackDetailPage({ params }: TrackPageProps) {
+  return <Suspense fallback={<div className="mx-auto max-w-5xl px-4 py-16 text-sm text-[var(--muted)]">Loading track…</div>}><TrackDetailContent params={params} /></Suspense>;
 }

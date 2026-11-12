@@ -1,8 +1,11 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
+import { asc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { resolveAdminAccount } from "@/lib/admin-access";
+import { db } from "@/lib/db";
+import { chapters, lessons, tracks } from "@/lib/schema";
 import AdminDashboard from "./admin-client";
 
 async function AdminContent() {
@@ -24,7 +27,17 @@ async function AdminContent() {
     );
   }
 
-  return <AdminDashboard />;
+  const initialTracks = await db.select().from(tracks).orderBy(asc(tracks.orderIndex));
+  const selectedTrackId = initialTracks[0]?.id;
+  const initialLessons = selectedTrackId
+    ? await db.select().from(lessons).where(eq(lessons.trackId, selectedTrackId)).orderBy(asc(lessons.orderIndex))
+    : [];
+  const selectedLessonId = initialLessons[0]?.id;
+  const initialChapters = selectedLessonId
+    ? await db.select().from(chapters).where(eq(chapters.lessonId, selectedLessonId)).orderBy(asc(chapters.orderIndex))
+    : [];
+
+  return <AdminDashboard initialTracks={initialTracks} initialLessons={initialLessons} initialChapters={initialChapters} />;
 }
 
 export default function AdminPage() {

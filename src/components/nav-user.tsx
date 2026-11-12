@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 
 interface UserInfo {
   name?: string | null;
   email?: string | null;
-  image?: string | null;
 }
 
 export default function NavUser() {
@@ -14,8 +15,8 @@ export default function NavUser() {
 
   useEffect(() => {
     fetch("/api/auth/session")
-      .then(r => r.json())
-      .then(data => {
+      .then((response) => response.json())
+      .then((data) => {
         setUser(data?.user ?? null);
         setLoading(false);
       })
@@ -26,28 +27,19 @@ export default function NavUser() {
 
   if (user) {
     return (
-      <>
-        <a href="/admin" className="hover:text-white transition">Admin</a>
-        <div className="flex items-center gap-3">
-          {user.image && (
-            <img src={user.image} alt="" className="w-7 h-7 rounded-full border border-[rgba(150,175,230,.22)]" />
-          )}
-          <span className="text-xs hidden sm:inline" style={{ color: '#6b7796' }}>{user.name || user.email}</span>
-          <a href="/api/auth/signout" className="text-xs hover:text-white transition" style={{ color: '#6b7796' }}>
-            Sign Out
-          </a>
-        </div>
-      </>
+      <div className="flex items-center gap-3">
+        <Link href="/admin" className="text-[var(--muted)] transition hover:text-[var(--foreground)]">Presentation Engine</Link>
+        <span className="hidden max-w-40 truncate text-xs text-[var(--muted-2)] sm:inline">{user.name || user.email}</span>
+        <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="text-xs text-[var(--muted-2)] transition hover:text-[var(--foreground)]">
+          Sign out
+        </button>
+      </div>
     );
   }
 
   return (
-    <a
-      href="/login"
-      className="px-4 py-2 rounded-full transition"
-      style={{ background: 'rgba(93,240,168,.05)', border: '1px solid rgba(93,240,168,.2)', color: '#5df0a8' }}
-    >
-      Sign In
-    </a>
+    <Link href="/login" className="inline-flex min-h-9 items-center rounded-full border border-[rgba(93,240,168,.25)] px-4 text-sm font-medium text-[var(--accent)] transition hover:bg-[rgba(93,240,168,.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+      Sign in
+    </Link>
   );
 }

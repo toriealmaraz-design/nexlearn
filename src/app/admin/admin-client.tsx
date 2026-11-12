@@ -1,136 +1,230 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
-import type { Track, Lesson } from "@/lib/types";
-import { getTracks, getLessons, createTrack, createLesson, updateLesson, deleteLesson as deleteLessonAction } from "./actions";
+import { useState, useTransition } from "react";
+import type { Chapter, Lesson, Track } from "@/lib/types";
+import { CURRICULUM_PHASES } from "@/lib/curriculum-phases";
+import ChapterManager from "./chapter-manager";
+import { createLesson, createTrack, deleteLesson as deleteLessonAction, getChapters, getLessons, getTracks, updateLesson } from "./actions";
 
-export default function AdminDashboard() {
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
+interface AdminDashboardProps {
+  initialTracks: Track[];
+  initialLessons: Lesson[];
+  initialChapters: Chapter[];
+}
+
+export default function AdminDashboard({ initialTracks, initialLessons, initialChapters }: AdminDashboardProps) {
+  const [tracks, setTracks] = useState(initialTracks);
+  const [lessons, setLessons] = useState(initialLessons);
+  const [chapters, setChapters] = useState(initialChapters);
+  const [selectedTrack, setSelectedTrack] = useState<string | null>(initialTracks[0]?.id ?? null);
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(initialLessons[0]?.id ?? null);
   const [editing, setEditing] = useState<Partial<Lesson> | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const selectedLesson = lessons.find((lesson) => lesson.id === selectedLessonId) ?? null;
 
-  useEffect(() => { loadTracks(); }, []);
-  useEffect(() => { if (selectedTrack) loadLessonsData(selectedTrack); }, [selectedTrack]);
-
-  async function loadTracks() {
-    const data = await getTracks();
-    setTracks(data);
-    if (data.length > 0 && !selectedTrack) setSelectedTrack(data[0].id);
+  async function refreshLessons(trackId: string, preferredLessonId?: string) {
+    const nextLessons = await getLessons(trackId);
+    const nextSelectedLesson = nextLessons.find((lesson) => lesson.id === preferredLessonId) ?? nextLessons[0] ?? null;
+    setLessons(nextLessons);
+    setSelectedLessonId(nextSelectedLesson?.id ?? null);
+    setChapters(nextSelectedLesson ? await getChapters(nextSelectedLesson.id) : []);
   }
 
-  async function loadLessonsData(trackId: string) {
-    const data = await getLessons(trackId);
-    setLessons(data);
-  }
-
-  async function handleSaveLesson() {
-    if (!editing || !selectedTrack) return;
+  function selectTrack(trackId: string) {
     startTransition(async () => {
-      if (editing.id) {
-        const { id, ...rest } = editing;
-        await updateLesson(id, rest);
-      } else {
-        await createLesson({ trackId: selectedTrack, title: editing.title || "Untitled", description: editing.description || undefined, orderIndex: editing.orderIndex ?? lessons.length, isPublished: editing.isPublished ?? false });
+      setError(null);
+      try {
+        setSelectedTrack(trackId);
+        setSelectedLessonId(null);
+        setLessons([]);
+        setChapters([]);
+        await refreshLessons(trackId);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Unable to load this track.");
       }
-      setEditing(null);
-      loadLessonsData(selectedTrack);
     });
   }
 
-  async function handleDeleteLesson(id: string) {
-    if (!confirm("Delete this lesson?")) return;
+  function selectLesson(lessonId: string) {
     startTransition(async () => {
-      await deleteLessonAction(id);
-      if (selectedTrack) loadLessonsData(selectedTrack);
+      setError(null);
+      try {
+        setSelectedLessonId(lessonId);
+        setChapters(await getChapters(lessonId));
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Unable to load this lesson.");
+      }
     });
   }
 
-  async function handleAddTrack() {
-    const title = prompt("Track title:");
-    if (!title) return;
-    const type = prompt("Type (internal or affiliate):", "internal");
+  function handleSaveLesson() {
+    if (!editing || !selectedTrack) return;
+
     startTransition(async () => {
-      await createTrack(title, type || "internal");
-      loadTracks();
+      setError(null);
+      try {
+        const lessonData = {
+          title: editing.title || "Untitled module",
+          description: editing.description || "",
+          orderIndex: Number(editing.orderIndex ?? lessons.length),
+          isPublished: Boolean(editing.isPublished),
+          phase: editing.phase ?? "foundations",
+        };
+        const preferredLessonId = editing.id;
+
+        if (editing.id) {
+          await updateLesson(editing.id, lessonData);
+        } else {
+          await createLesson({ trackId: selectedTrack, ...lessonData });
+        }
+
+        setEditing(null);
+        await refreshLessons(selectedTrack, preferredLessonId);
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : "Unable to save this module.");
+      }
+    });
+  }
+
+  function handleDeleteLesson(lessonId: string) {
+    if (!window.confirm("Delete this module and its sections?")) return;
+
+    startTransition(async () => {
+      setError(null);
+      try {
+        await deleteLessonAction(lessonId);
+        if (selectedTrack) await refreshLessons(selectedTrack);
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "Unable to delete this module.");
+      }
+    });
+  }
+
+  function handleAddTrack() {
+    const title = window.prompt("Track title:");
+    if (!title?.trim()) return;
+    const type = window.prompt("Type (internal or affiliate):", "internal");
+    if (type !== "internal" && type !== "affiliate") {
+      setError("Choose internal or affiliate for the track type.");
+      return;
+    }
+
+    startTransition(async () => {
+      setError(null);
+      try {
+        await createTrack(title, type);
+        const nextTracks = await getTracks();
+        setTracks(nextTracks);
+        const createdTrack = nextTracks.find((track) => track.title === title.trim());
+        if (createdTrack) {
+          setSelectedTrack(createdTrack.id);
+          await refreshLessons(createdTrack.id);
+        }
+      } catch (createError) {
+        setError(createError instanceof Error ? createError.message : "Unable to create this track.");
+      }
     });
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-8">
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:py-12">
+      <div className="flex flex-wrap items-start justify-between gap-5">
         <div>
-          <h1 className="text-3xl font-bold">Presentation Engine</h1>
-          <p className="text-[#9aa6c4] text-sm mt-1">Manage tracks, lessons, and resources</p>
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--accent)]">NexLearn admin</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Presentation Engine</h1>
+          <p className="mt-2 text-sm text-[var(--muted)]">Group modules into phases, publish lessons, and update resources without a redeploy.</p>
         </div>
-        <button onClick={handleAddTrack} disabled={isPending} className="px-5 py-2.5 rounded-full bg-[rgba(93,240,168,.1)] border border-[rgba(93,240,168,.2)] text-[#5df0a8] text-sm font-semibold hover:bg-[rgba(93,240,168,.2)] transition">
-          + New Track
+        <button type="button" onClick={handleAddTrack} disabled={isPending} className="min-h-10 rounded-full border border-[rgba(93,240,168,.28)] px-4 text-sm font-medium text-[var(--accent)] transition hover:bg-[rgba(93,240,168,.08)] disabled:opacity-50">
+          New track
         </button>
       </div>
 
-      <div className="flex gap-2 mb-8 flex-wrap">
-        {tracks.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setSelectedTrack(t.id)}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
-              selectedTrack === t.id
-                ? "bg-[#5df0a8] text-[#032018]"
-                : "bg-[rgba(16,24,48,.65)] text-[#9aa6c4] hover:bg-[rgba(150,175,230,.22)]"
-            }`}
-          >
-            {t.title}
+      {error && <p role="alert" className="mt-5 rounded-lg border border-red-400/20 bg-red-400/5 px-3 py-2 text-sm text-red-200">{error}</p>}
+
+      <div className="mt-8 flex flex-wrap gap-2" aria-label="Learning tracks">
+        {tracks.map((track) => (
+          <button key={track.id} type="button" onClick={() => selectTrack(track.id)} disabled={isPending} aria-pressed={selectedTrack === track.id} className={`min-h-10 rounded-full border px-4 text-sm font-medium transition disabled:opacity-50 ${selectedTrack === track.id ? "border-[var(--accent)] bg-[rgba(93,240,168,.1)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--foreground)]"}`}>
+            {track.title}
           </button>
         ))}
       </div>
 
-      <div className="space-y-3 mb-8">
-        {lessons.map((l) => (
-          <div key={l.id} className="flex items-center gap-4 p-4 rounded-xl bg-[rgba(12,18,38,.55)] border border-[rgba(150,175,230,.12)]">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{l.title}</h3>
-                {!l.isPublished && <span className="text-xs text-yellow-400 bg-[rgba(255,210,122,.1)] px-2 py-0.5 rounded">Draft</span>}
-              </div>
-              <div className="flex gap-3 mt-1 text-xs text-[#6b7796]">
-                {l.description && <span className="text-xs text-[#6b7796] truncate">{l.description}</span>}
-              </div>
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,.88fr)_minmax(0,1.12fr)]">
+        <section aria-labelledby="modules-heading">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 id="modules-heading" className="text-lg font-semibold">Modules</h2>
+              <p className="mt-1 text-xs text-[var(--muted-2)]">Order and publish each module.</p>
             </div>
-            <button onClick={() => setEditing(l)} className="text-sm text-[#9aa6c4] hover:text-white transition">Edit</button>
-            <button onClick={() => handleDeleteLesson(l.id)} className="text-sm text-red-400 hover:text-red-300 transition">Delete</button>
+            <button type="button" onClick={() => setEditing({ title: "", description: "", orderIndex: lessons.length, isPublished: false, phase: "foundations" })} disabled={!selectedTrack || isPending} className="min-h-9 rounded-full border border-[var(--line-strong)] px-3 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--accent)] disabled:opacity-50">
+              Add module
+            </button>
           </div>
-        ))}
+
+          <ol className="mt-4 flex flex-col divide-y divide-[var(--line)] rounded-xl border border-[var(--line)] bg-[var(--glass)] px-4">
+            {lessons.map((lesson, index) => (
+              <li key={lesson.id} className="flex flex-wrap items-center gap-3 py-4">
+                <span className="text-xs tabular-nums text-[var(--muted-2)]">{String(index + 1).padStart(2, "0")}</span>
+                <button type="button" onClick={() => selectLesson(lesson.id)} aria-pressed={selectedLessonId === lesson.id} className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-sm font-medium text-[var(--foreground)]">{lesson.title}</span>
+                  <span className="mt-1 block text-xs text-[var(--muted-2)]">{CURRICULUM_PHASES.find((phase) => phase.id === lesson.phase)?.label ?? "Foundations"} · {lesson.isPublished ? "Published" : "Draft"}</span>
+                </button>
+                <button type="button" onClick={() => setEditing(lesson)} className="text-xs text-[var(--muted)] transition hover:text-[var(--accent)]">Edit</button>
+                <button type="button" onClick={() => handleDeleteLesson(lesson.id)} disabled={isPending} className="text-xs text-[var(--muted-2)] transition hover:text-red-300 disabled:opacity-50">Delete</button>
+              </li>
+            ))}
+            {lessons.length === 0 && <li className="py-8 text-center text-sm text-[var(--muted)]">No modules in this track yet.</li>}
+          </ol>
+        </section>
+
+        <div>
+          {selectedLesson ? (
+            <ChapterManager key={selectedLesson.id} lesson={selectedLesson} initialChapters={chapters} />
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[var(--line-strong)] px-6 py-10 text-center text-sm text-[var(--muted)]">
+              Select a module to add or edit its sections.
+            </div>
+          )}
+        </div>
       </div>
 
-      <button
-        onClick={() => setEditing({ title: "", description: "", orderIndex: lessons.length, isPublished: false })}
-        className="px-5 py-2.5 rounded-full bg-[rgba(16,24,48,.65)] text-[#9aa6c4] text-sm font-semibold hover:bg-[rgba(150,175,230,.22)] transition"
-      >
-        + Add Lesson
-      </button>
-
       {editing && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#060a18] border border-[rgba(150,175,230,.22)] rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-5">{editing.id ? "Edit Lesson" : "New Lesson"}</h2>
-            <div className="space-y-4">
-              <input placeholder="Lesson title" value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition" />
-              <textarea placeholder="Description" value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} rows={3} className="w-full px-4 py-3 rounded-xl bg-[rgba(16,24,48,.65)] border border-[rgba(150,175,230,.22)] text-sm focus:border-[#5df0a8] focus:outline-none transition resize-none" />
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={editing.isPublished || false} onChange={(e) => setEditing({ ...editing, isPublished: e.target.checked })} className="accent-[#5df0a8]" />
-                Published
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <form role="dialog" aria-modal="true" aria-labelledby="module-editor-heading" onSubmit={(event) => { event.preventDefault(); handleSaveLesson(); }} className="flex max-h-[90vh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-2xl border border-[var(--line-strong)] bg-[var(--background)] p-6 shadow-2xl">
+            <div>
+              <h2 id="module-editor-heading" className="text-xl font-semibold">{editing.id ? "Edit module" : "New module"}</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">Choose a phase, set its order, and publish when it is ready.</p>
+            </div>
+            <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+              Module title
+              <input required maxLength={240} value={editing.title || ""} onChange={(event) => setEditing({ ...editing, title: event.target.value })} className="min-h-11 rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]" />
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+              Short description
+              <textarea rows={3} maxLength={5000} value={editing.description || ""} onChange={(event) => setEditing({ ...editing, description: event.target.value })} className="rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 py-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]" />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+                Curriculum phase
+                <select value={editing.phase || "foundations"} onChange={(event) => setEditing({ ...editing, phase: event.target.value as Lesson["phase"] })} className="min-h-11 rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]">
+                  {CURRICULUM_PHASES.map((phase) => <option key={phase.id} value={phase.id}>{phase.label}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+                Display order
+                <input type="number" min={0} max={100000} value={editing.orderIndex ?? lessons.length} onChange={(event) => setEditing({ ...editing, orderIndex: Number(event.target.value) })} className="min-h-11 rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]" />
               </label>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={handleSaveLesson} disabled={isPending} className="flex-1 px-5 py-3 rounded-xl bg-[#5df0a8] text-[#032018] font-bold text-sm hover:bg-[#2fd38a] transition disabled:opacity-50">
-                {isPending ? "Saving..." : "Save"}
-              </button>
-              <button onClick={() => setEditing(null)} className="px-5 py-3 rounded-xl bg-[rgba(16,24,48,.65)] text-[#9aa6c4] text-sm hover:bg-[rgba(150,175,230,.22)] transition">
-                Cancel
-              </button>
+            <label className="flex items-center gap-3 text-sm text-[var(--muted)]">
+              <input type="checkbox" checked={Boolean(editing.isPublished)} onChange={(event) => setEditing({ ...editing, isPublished: event.target.checked })} className="size-4 accent-[var(--accent)]" />
+              Published and available without sign-in
+            </label>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button type="submit" disabled={isPending} className="min-h-11 rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-2)] disabled:opacity-50">{isPending ? "Saving…" : "Save module"}</button>
+              <button type="button" onClick={() => setEditing(null)} className="min-h-11 rounded-full border border-[var(--line-strong)] px-5 text-sm text-[var(--muted)] transition hover:text-[var(--foreground)]">Cancel</button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>
