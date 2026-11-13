@@ -28,8 +28,9 @@
   --color-nex-glass2: rgba(16,24,48,.65);
   --color-nex-line: rgba(150,175,230,.12);
   --color-nex-line-strong: rgba(150,175,230,.22);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-head);
+  --font-mono: var(--font-code);
 }
 
 body {
@@ -39,3 +40,59 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+h1, h2, h3, .font-display { font-family: var(--font-head), var(--font-body), sans-serif; letter-spacing: -0.02em; }
+
+/* The landing page brings its own navigation */
+body:has(.planet-canvas) .site-header { display: none; }
+
+/* Page-wide motion */
+@keyframes nx-fade-up { from { opacity: 0; transform: translateY(18px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.nx-main > * { animation: nx-fade-up .7s cubic-bezier(.22,.7,.2,1) both; }
+.nx-main section, .nx-main li, .nx-main article { animation: nx-fade-up .7s cubic-bezier(.22,.7,.2,1) both; animation-timeline: view(); animation-range: entry 0% cover 25%; }
+.nx-main a, .nx-main button { transition: transform .2s ease, box-shadow .25s ease, background-color .2s ease, color .2s ease, border-color .2s ease; }
+.nx-main a.rounded-full:hover, .nx-main button.rounded-full:hover { transform: translateY(-2px); box-shadow: 0 12px 30px -10px rgba(93,240,168,.5); }
+.nx-main .rounded-2xl, .nx-main .rounded-xl { transition: transform .3s cubic-bezier(.22,.7,.2,1), border-color .25s ease, box-shadow .3s ease; }
+.nx-main a.rounded-2xl:hover, .nx-main li.rounded-xl:hover { transform: translateY(-4px); border-color: var(--line-strong); box-shadow: 0 20px 50px -24px rgba(93,240,168,.3); }
+@keyframes nx-shimmer-text { to { background-position: 200% 50%; } }
+.nx-main h1:not(.hero-title) { background: linear-gradient(90deg, var(--foreground) 0%, var(--foreground) 40%, var(--accent) 50%, var(--foreground) 60%, var(--foreground) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: nx-fade-up .7s both, nx-shimmer-text 6s linear 1s infinite; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .nx-main h1:not(.hero-title) { color: var(--foreground); background: none; }
+}
+
+/* ── Cassette audio player ── */
+.cassette { --c-body: #121a33; --c-edge: #1d2850; --c-label: #f3ecd8; --c-label-ink: #1b1f2e; --c-tape: #2a1a12; max-width: 520px; width: 100%; }
+.cassette-body { position: relative; aspect-ratio: 1.6 / 1; border-radius: 18px; background: linear-gradient(160deg, var(--c-edge), var(--c-body)); border: 1px solid var(--line-strong); box-shadow: 0 30px 60px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.08); padding: 6% 6% 0; overflow: hidden; }
+.cassette-screw { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle, #4a5680 30%, #1a2244 70%); }
+.cassette-screw.tl { top: 10px; left: 10px; } .cassette-screw.tr { top: 10px; right: 10px; }
+.cassette-screw.bl { bottom: 10px; left: 10px; } .cassette-screw.br { bottom: 10px; right: 10px; }
+.cassette-label { position: relative; height: 70%; border-radius: 10px; background: repeating-linear-gradient(180deg, var(--c-label) 0 22px, #e6dcc2 22px 23px); padding: 10px 14px; color: var(--c-label-ink); box-shadow: inset 0 0 0 3px var(--accent); }
+.cassette-side { position: absolute; left: 14px; top: 8px; font-family: var(--font-head), sans-serif; font-weight: 800; font-size: 20px; color: var(--accent-2); }
+.cassette-title { margin: 0 34px; text-align: center; font-family: var(--font-head), sans-serif; font-weight: 700; font-size: clamp(14px, 2.6vw, 18px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cassette-time { position: absolute; right: 14px; top: 10px; font-family: var(--font-code), monospace; font-size: 11px; opacity: .7; }
+.cassette-window { position: absolute; left: 20%; right: 20%; top: 38%; height: 30%; border-radius: 999px; background: rgba(4,6,15,.85); border: 2px solid #0a0f22; display: flex; align-items: center; justify-content: space-between; padding: 0 6%; }
+.cassette-reel { position: relative; width: 72px; height: 72px; display: grid; place-items: center; }
+.cassette-tape { position: absolute; border-radius: 50%; background: radial-gradient(circle, var(--c-tape) 55%, #3b2619 100%); transition: width .3s linear, height .3s linear; }
+.cassette-hub { position: relative; width: 30px; height: 30px; border-radius: 50%; background: #e9eefc; display: grid; place-items: center; }
+.cassette-hub i { position: absolute; width: 4px; height: 12px; background: #0a0f22; border-radius: 2px; }
+.cassette-hub i:nth-child(1) { transform: rotate(0deg) translateY(-6px); }
+.cassette-hub i:nth-child(2) { transform: rotate(120deg) translateY(-6px); }
+.cassette-hub i:nth-child(3) { transform: rotate(240deg) translateY(-6px); }
+@keyframes cassette-spin { to { transform: rotate(360deg); } }
+.cassette.is-playing .cassette-hub { animation: cassette-spin 1.6s linear infinite; }
+.cassette.is-playing .cassette-reel.right .cassette-hub { animation-duration: 2.2s; }
+.cassette-bottom { position: absolute; left: 18%; right: 18%; bottom: 0; height: 16%; background: #0d1430; clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%); border-top: 1px solid var(--line-strong); }
+.cassette-caption { margin-top: 12px; min-height: 1.6em; text-align: center; font-size: 15px; color: var(--foreground); background: rgba(4,6,15,.7); border-radius: 8px; padding: 6px 10px; }
+.cassette-deck { margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+.cassette-key { min-width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: linear-gradient(180deg, #1a2346, #0e1430); color: var(--foreground); font-size: 14px; box-shadow: 0 4px 0 #070b1c; transition: transform .1s ease, box-shadow .1s ease, color .2s ease; cursor: pointer; }
+.cassette-key:active, .cassette-key[aria-pressed="true"] { transform: translateY(3px); box-shadow: 0 1px 0 #070b1c; }
+.cassette-key.primary { background: linear-gradient(180deg, var(--accent), var(--accent-2)); color: var(--accent-ink); border-color: transparent; }
+.cassette-key.cc.on { color: var(--accent); border-color: var(--accent); }
+.cassette-key:focus-visible, .cassette-seek:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cassette-seek { flex: 1; appearance: none; height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--accent) var(--p, 0%), var(--line-strong) var(--p, 0%)); cursor: pointer; }
+.cassette-seek::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--foreground); border: 3px solid var(--accent); }
+.cassette-seek::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--foreground); border: 3px solid var(--accent); }
+.cassette-error { margin-top: 8px; font-size: 13px; color: #ff8a8a; }
+@media (max-width: 420px) { .cassette-reel { width: 52px; height: 52px; } .cassette-hub { width: 22px; height: 22px; } .cassette-tape { transform: scale(.72); } }
+@media (prefers-reduced-motion: reduce) { .cassette.is-playing .cassette-hub { animation: none; } }

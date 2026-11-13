@@ -1,18 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Sora, Manrope, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import NavUser from "@/components/nav-user";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const sora = Sora({ variable: "--font-head", subsets: ["latin"], display: "swap" });
+const manrope = Manrope({ variable: "--font-body", subsets: ["latin"], display: "swap" });
+const mono = JetBrains_Mono({ variable: "--font-code", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "NexLearn — Build with AI. Ship with confidence.",
@@ -27,10 +21,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className={`${sora.variable} ${manrope.variable} ${mono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col" style={{ background: '#04060f', color: '#f3f6ff' }}>
-        <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[rgba(4,6,15,.88)] backdrop-blur-md">
+        <header className="site-header sticky top-0 z-50 border-b border-[var(--line)] bg-[rgba(4,6,15,.88)] backdrop-blur-md">
           <nav aria-label="Primary navigation" className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
             <Link href="/" className="text-lg font-semibold tracking-tight text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
               <span aria-hidden="true" className="mr-2 text-[var(--accent)]">▲</span>NexLearn
@@ -42,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </nav>
         </header>
-        <main className="flex-1">{children}</main>
+        <main className="nx-main flex-1">{children}</main>
       </body>
     </html>
   );

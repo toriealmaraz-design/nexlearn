@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { chapters, lessons, tracks, userProgress } from "@/lib/schema";
 import type { Chapter, Lesson, Track } from "@/lib/types";
 import ProgressControl from "./progress-control";
+import { CassettePlayer } from "@/components/CassettePlayer";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -164,9 +165,11 @@ async function LessonDetailContent({ params, searchParams }: LessonPageProps) {
               {activeChapter.audioUrl && (
                 <div className="mb-6 rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
                   <p className="mb-3 text-sm font-medium text-[var(--foreground)]">Listen to this section</p>
-                  <audio controls preload="metadata" className="w-full" aria-label={`Audio for ${activeChapter.title}`}>
-                    <source src={activeChapter.audioUrl} type="audio/mpeg" />
-                  </audio>
+                  <CassettePlayer
+                    audioSrc={activeChapter.audioUrl}
+                    trackTitle={activeChapter.audioTitle || activeChapter.title}
+                    captionTracks={activeChapter.captionsUrl ? [{ default: true, label: "English", src: activeChapter.captionsUrl, srcLang: "en" }] : []}
+                  />
                 </div>
               )}
 

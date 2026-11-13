@@ -44,6 +44,8 @@ CREATE TABLE chapters (
   title TEXT NOT NULL,
   content_body TEXT,
   audio_url TEXT,
+  audio_title TEXT,
+  captions_url TEXT,
   pdf_url TEXT,
   meet_link TEXT,
   affiliate_link TEXT,

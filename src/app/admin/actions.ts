@@ -133,6 +133,8 @@ export async function createChapter(data: {
   title: string;
   contentBody?: string;
   audioUrl?: string;
+  audioTitle?: string;
+  captionsUrl?: string;
   pdfUrl?: string;
   meetLink?: string;
   affiliateLink?: string;
@@ -150,6 +152,8 @@ export async function createChapter(data: {
     title,
     contentBody: optionalText(data?.contentBody, "chapter content"),
     audioUrl: optionalText(data?.audioUrl, "audio URL", 2_000),
+    audioTitle: optionalText(data?.audioTitle, "audio title", 240),
+    captionsUrl: optionalText(data?.captionsUrl, "captions URL", 2_000),
     pdfUrl: optionalText(data?.pdfUrl, "PDF URL", 2_000),
     meetLink: optionalText(data?.meetLink, "meeting URL", 2_000),
     affiliateLink: optionalText(data?.affiliateLink, "affiliate URL", 2_000),
@@ -168,6 +172,8 @@ export async function updateChapter(id: string, data: Record<string, unknown>) {
   if (data.title !== undefined) updates.title = requireText(data.title, "chapter title");
   if (data.contentBody !== undefined) updates.contentBody = optionalText(data.contentBody, "chapter content");
   if (data.audioUrl !== undefined) updates.audioUrl = optionalText(data.audioUrl, "audio URL", 2_000);
+  if (data.audioTitle !== undefined) updates.audioTitle = optionalText(data.audioTitle, "audio title", 240);
+  if (data.captionsUrl !== undefined) updates.captionsUrl = optionalText(data.captionsUrl, "captions URL", 2_000);
   if (data.pdfUrl !== undefined) updates.pdfUrl = optionalText(data.pdfUrl, "PDF URL", 2_000);
   if (data.meetLink !== undefined) updates.meetLink = optionalText(data.meetLink, "meeting URL", 2_000);
   if (data.affiliateLink !== undefined) updates.affiliateLink = optionalText(data.affiliateLink, "affiliate URL", 2_000);

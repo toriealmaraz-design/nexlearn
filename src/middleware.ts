@@ -17,7 +17,7 @@ export default auth((req) => {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    /\.(svg|png|jpg|ico|css|js|woff2?)$/.test(pathname)
+    /\.(svg|png|jpe?g|webp|gif|ico|css|js|woff2?|mp3|m4a|wav|ogg|vtt|pdf)$/.test(pathname)
   ) {
     return NextResponse.next();
   }

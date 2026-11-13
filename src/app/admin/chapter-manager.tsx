@@ -30,6 +30,8 @@ export default function ChapterManager({ lesson, initialChapters }: ChapterManag
           title: editing.title || "Untitled section",
           contentBody: editing.contentBody || "",
           audioUrl: editing.audioUrl || "",
+          audioTitle: editing.audioTitle || "",
+          captionsUrl: editing.captionsUrl || "",
           pdfUrl: editing.pdfUrl || "",
           meetLink: editing.meetLink || "",
           affiliateLink: editing.affiliateLink || "",
@@ -122,6 +124,14 @@ export default function ChapterManager({ lesson, initialChapters }: ChapterManag
             <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
               Audio URL
               <input type="url" value={editing.audioUrl || ""} onChange={(event) => setEditing({ ...editing, audioUrl: event.target.value })} className="min-h-11 rounded-lg border border-[var(--line-strong)] bg-[var(--background)] px-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]" />
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+              Cassette title (shown on the audio player)
+              <input maxLength={240} placeholder="Defaults to the section title" value={editing.audioTitle || ""} onChange={(event) => setEditing({ ...editing, audioTitle: event.target.value })} className="min-h-11 rounded-lg border border-[var(--line-strong)] bg-[var(--background)] px-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]" />
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+              Captions file URL (.vtt, optional)
+              <input type="url" value={editing.captionsUrl || ""} onChange={(event) => setEditing({ ...editing, captionsUrl: event.target.value })} className="min-h-11 rounded-lg border border-[var(--line-strong)] bg-[var(--background)] px-3 text-[var(--foreground)] outline-none focus:border-[var(--accent)]" />
             </label>
             <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
               PDF URL

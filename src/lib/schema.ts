@@ -32,6 +32,8 @@ export const chapters = pgTable("chapters", {
   title: text("title").notNull(),
   contentBody: text("content_body"),       // markdown content
   audioUrl: text("audio_url"),             // audio for this chapter
+  audioTitle: text("audio_title"),         // cassette label, set by admin
+  captionsUrl: text("captions_url"),       // optional .vtt captions for the audio
   pdfUrl: text("pdf_url"),                 // downloadable PDF
   meetLink: text("meet_link"),             // Google Meet link
   affiliateLink: text("affiliate_link"),   // Grodigital link

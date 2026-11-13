@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
@@ -86,7 +87,7 @@ export default function LoginClient({ googleAuthEnabled }: { googleAuthEnabled: 
         </form>
 
         <p className="mt-6 text-center text-xs text-[#6b7796]">Staff accounts only. Clients don&apos;t need to sign in.</p>
-        <a href="/landing.html" className="mt-5 block text-center text-sm text-[#12d7ed] hover:text-white">← Back to main site</a>
+        <Link href="/" className="mt-5 block text-center text-sm text-[#12d7ed] hover:text-white">← Back to main site</Link>
       </section>
     </main>
   );
