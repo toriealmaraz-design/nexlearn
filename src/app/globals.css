@@ -28,8 +28,9 @@
   --color-nex-glass2: rgba(16,24,48,.65);
   --color-nex-line: rgba(150,175,230,.12);
   --color-nex-line-strong: rgba(150,175,230,.22);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-head);
+  --font-mono: var(--font-code);
 }
 
 body {
@@ -38,4 +39,13 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-head), var(--font-body), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+body:has(.planet-canvas) .site-header {
+  display: none;
 }
