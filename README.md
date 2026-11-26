@@ -8,7 +8,7 @@ A free educational platform with live coding classes, audio lessons, PDF resourc
 - **Database:** [Neon](https://neon.tech) serverless Postgres
 - **ORM:** Drizzle ORM + drizzle-kit
 - **Hosting:** [Vercel](https://vercel.com)
-- **Landing Page:** Captured static design served at `/`, linked into `/tracks` and `/login`
+- **Landing Page:** WebGL planet scene with glassmorphism UI, carrying the captured TheLazyDeveloper curriculum copy
 
 ## Getting Started
 
@@ -41,7 +41,7 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — the landing page loads with the captured design.
+Open [http://localhost:3000](http://localhost:3000) — the landing page loads with the WebGL planet and the curriculum copy.
 
 ### 4. Deploy to Vercel
 
@@ -82,13 +82,11 @@ Then visit `/tracks` to see your content, or `/admin` to manage it.
 ```
 nexlearn/
 ├── public/
-│   ├── landing.html          # Legacy static landing (not routed)
-│   ├── landing/              # Legacy WebGL planet assets
-│   └── planet/               # Legacy planet assets
+│   └── landing.html          # WebGL planet landing page + AI chatbot
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx           # Captured landing design
-│   │   ├── lazy-developer.css # Landing design tokens and responsive styles
+│   │   ├── page.tsx           # Animated landing page
+│   │   ├── landing.css        # Landing design system + captured content styles
 │   │   ├── layout.tsx         # Global nav + layout
 │   │   ├── login/page.tsx     # Auth page
 │   │   ├── admin/
